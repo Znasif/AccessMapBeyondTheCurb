@@ -1,4 +1,4 @@
-# [Draft] AccessMap Beyond The Curb
+# AccessMap Beyond The Curb
 
 ## Open Source Assistive Technology Hackathon: Door-to-Door Accessibility Explorer
 
@@ -71,7 +71,7 @@ TBD
 For this hackathon, use the **shortest path custom routing endpoint**:
 
 ```http
-GET https://www.accessmap.app/api/v1/routing/shortest_path/custom.json
+GET https://stage.accessmap.app/api/v1/routing/shortest_path/custom.json
 ```
 
 ### Required query parameters
@@ -93,7 +93,7 @@ GET https://www.accessmap.app/api/v1/routing/shortest_path/custom.json
 ### Example request
 
 ```http
-GET https://www.accessmap.app/api/v1/routing/shortest_path/custom.json?lon1=-121.914971&lat1=47.647018&lon2=-121.913763&lat2=47.6485371&uphill=0.05&downhill=0.099&avoidCurbs=1&streetAvoidance=1
+GET https://stage.accessmap.app/api/v1/routing/shortest_path/custom.json?lon1=-121.914971&lat1=47.647018&lon2=-121.913763&lat2=47.6485371&uphill=0.05&downhill=0.099&avoidCurbs=1&streetAvoidance=1
 ```
 
 ### AccessMap response codes to handle
