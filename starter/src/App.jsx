@@ -91,6 +91,7 @@ function App() {
         id: 'route-line',
         type: 'line',
         source: 'route',
+        filter: ['==', ['get', 'kind'], 'route'],
         layout: {
           'line-cap': 'round',
           'line-join': 'round',
@@ -99,6 +100,23 @@ function App() {
           'line-color': '#2563eb',
           'line-width': 6,
           'line-opacity': 0.9,
+        },
+      });
+
+      map.addLayer({
+        id: 'route-connector-line',
+        type: 'line',
+        source: 'route',
+        filter: ['==', ['get', 'kind'], 'connector'],
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+        },
+        paint: {
+          'line-color': '#2563eb',
+          'line-width': 4,
+          'line-opacity': 0.75,
+          'line-dasharray': [0, 2],
         },
       });
 
@@ -664,9 +682,10 @@ async function fetchAccessibleRoute({ accessMapBase, startPoint, endPoint, prefs
   }
 
   const data = await response.json();
+  const route = data.routes?.[0] || null;
   return {
     code: data.code || 'Unknown',
-    route: data.routes?.[0] || null,
+    route: route ? { ...route, origin: data.origin, destination: data.destination } : null,
   };
 }
 
@@ -843,9 +862,15 @@ function buildBbox(point, delta) {
 }
 
 function toRouteGeoJson(route) {
-  if (!route?.geometry) {
+  const coordinates = route?.geometry?.coordinates;
+  if (!coordinates?.length) {
     return EMPTY_GEOJSON;
   }
+
+  const origin = route.origin?.geometry?.coordinates;
+  const destination = route.destination?.geometry?.coordinates;
+  const firstRoutePoint = coordinates[0];
+  const lastRoutePoint = coordinates[coordinates.length - 1];
 
   return {
     type: 'FeatureCollection',
@@ -853,12 +878,33 @@ function toRouteGeoJson(route) {
       {
         type: 'Feature',
         properties: {
+          kind: 'route',
           distance: route.distance,
           duration: route.duration,
         },
         geometry: route.geometry,
       },
-    ],
+      origin && firstRoutePoint
+        ? {
+            type: 'Feature',
+            properties: { kind: 'connector', endpoint: 'origin' },
+            geometry: {
+              type: 'LineString',
+              coordinates: [origin, firstRoutePoint],
+            },
+          }
+        : null,
+      destination && lastRoutePoint
+        ? {
+            type: 'Feature',
+            properties: { kind: 'connector', endpoint: 'destination' },
+            geometry: {
+              type: 'LineString',
+              coordinates: [destination, lastRoutePoint],
+            },
+          }
+        : null,
+    ].filter(Boolean),
   };
 }
 

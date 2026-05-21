@@ -62,7 +62,36 @@ Build a lightweight tool that:
 
 ## Getting started
 
-TBD
+1. Clone the repo:
+
+   ```bash
+   git clone https://github.com/TaskarCenterAtUW/AccessMapBeyondTheCurb
+   ```
+
+2. Go into the starter app:
+
+   ```bash
+   cd starter
+   ```
+
+3. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+4. Update your `.env` file with the two required tokens:
+
+   ```env
+   VITE_MAPBOX_TOKEN=
+   VITE_MAPILLARY_TOKEN=
+   ```
+
+5. Start the dev server:
+
+   ```bash
+   npm run-script dev
+   ```
 
 ---
 
