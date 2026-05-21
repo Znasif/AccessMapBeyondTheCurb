@@ -357,6 +357,13 @@ code {
   border-radius: 12px;
   padding: 8px;
   background: #ffffff;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.image-card.selected {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 2px #f59e0b55;
 }
 
 .image-card img {

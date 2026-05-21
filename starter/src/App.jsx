@@ -49,6 +49,11 @@ function App() {
   const [imagesLoading, setImagesLoading] = useState(false);
   const [imagery, setImagery] = useState({ origin: [], destination: [] });
   const [imageryError, setImageryError] = useState('');
+  const [selectedImageId, setSelectedImageId] = useState(null);
+
+  function handleImageClick(image) {
+    setSelectedImageId((prev) => (prev === image.id ? null : image.id));
+  }
 
   const proximity = useMemo(
     () => [startPoint, endPoint].find(Boolean) || { lng: GH_HQ.lng, lat: GH_HQ.lat },
@@ -120,35 +125,77 @@ function App() {
         },
       });
 
-      map.addSource('origin-images', {
-        type: 'geojson',
-        data: EMPTY_GEOJSON,
+      map.addSource('origin-images', { type: 'geojson', data: EMPTY_GEOJSON });
+
+      map.addLayer({
+        id: 'origin-sector-fill',
+        type: 'fill',
+        source: 'origin-images',
+        filter: ['==', ['get', 'kind'], 'sector'],
+        paint: {
+          'fill-color': ['case', ['boolean', ['get', 'selected'], false], '#f59e0b', '#16a34a'],
+          'fill-opacity': ['case', ['boolean', ['get', 'selected'], false], 0.35, 0.2],
+        },
+      });
+
+      map.addLayer({
+        id: 'origin-sector-outline',
+        type: 'line',
+        source: 'origin-images',
+        filter: ['==', ['get', 'kind'], 'sector'],
+        paint: {
+          'line-color': ['case', ['boolean', ['get', 'selected'], false], '#f59e0b', '#16a34a'],
+          'line-width': 1.5,
+          'line-opacity': 0.8,
+        },
       });
 
       map.addLayer({
         id: 'origin-images-layer',
         type: 'circle',
         source: 'origin-images',
+        filter: ['==', ['get', 'kind'], 'dot'],
         paint: {
-          'circle-radius': 5,
-          'circle-color': '#16a34a',
+          'circle-radius': ['case', ['boolean', ['get', 'selected'], false], 7, 5],
+          'circle-color': ['case', ['boolean', ['get', 'selected'], false], '#f59e0b', '#16a34a'],
           'circle-stroke-width': 1.5,
           'circle-stroke-color': '#ffffff',
         },
       });
 
-      map.addSource('destination-images', {
-        type: 'geojson',
-        data: EMPTY_GEOJSON,
+      map.addSource('destination-images', { type: 'geojson', data: EMPTY_GEOJSON });
+
+      map.addLayer({
+        id: 'destination-sector-fill',
+        type: 'fill',
+        source: 'destination-images',
+        filter: ['==', ['get', 'kind'], 'sector'],
+        paint: {
+          'fill-color': ['case', ['boolean', ['get', 'selected'], false], '#f59e0b', '#dc2626'],
+          'fill-opacity': ['case', ['boolean', ['get', 'selected'], false], 0.35, 0.2],
+        },
+      });
+
+      map.addLayer({
+        id: 'destination-sector-outline',
+        type: 'line',
+        source: 'destination-images',
+        filter: ['==', ['get', 'kind'], 'sector'],
+        paint: {
+          'line-color': ['case', ['boolean', ['get', 'selected'], false], '#f59e0b', '#dc2626'],
+          'line-width': 1.5,
+          'line-opacity': 0.8,
+        },
       });
 
       map.addLayer({
         id: 'destination-images-layer',
         type: 'circle',
         source: 'destination-images',
+        filter: ['==', ['get', 'kind'], 'dot'],
         paint: {
-          'circle-radius': 5,
-          'circle-color': '#dc2626',
+          'circle-radius': ['case', ['boolean', ['get', 'selected'], false], 7, 5],
+          'circle-color': ['case', ['boolean', ['get', 'selected'], false], '#f59e0b', '#dc2626'],
           'circle-stroke-width': 1.5,
           'circle-stroke-color': '#ffffff',
         },
@@ -217,9 +264,9 @@ function App() {
       return;
     }
 
-    map.getSource('origin-images')?.setData(toImageGeoJson(imagery.origin));
-    map.getSource('destination-images')?.setData(toImageGeoJson(imagery.destination));
-  }, [imagery]);
+    map.getSource('origin-images')?.setData(toImageGeoJson(imagery.origin, selectedImageId));
+    map.getSource('destination-images')?.setData(toImageGeoJson(imagery.destination, selectedImageId));
+  }, [imagery, selectedImageId]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -485,8 +532,8 @@ function App() {
             {imagesLoading ? <span className="loading-pill">Loading…</span> : null}
           </div>
 
-          <ImageBucket title="Origin frontage" images={imagery.origin} />
-          <ImageBucket title="Destination frontage" images={imagery.destination} />
+          <ImageBucket title="Origin frontage" images={imagery.origin} selectedImageId={selectedImageId} onImageClick={handleImageClick} />
+          <ImageBucket title="Destination frontage" images={imagery.destination} selectedImageId={selectedImageId} onImageClick={handleImageClick} />
 
           {imageryError ? <p className="error-text">{imageryError}</p> : null}
           {!mapillaryToken ? (
@@ -640,14 +687,18 @@ function PointMeta({ point }) {
   );
 }
 
-function ImageBucket({ title, images }) {
+function ImageBucket({ title, images, selectedImageId, onImageClick }) {
   return (
     <div className="image-bucket">
       <h3>{title}</h3>
       {images.length ? (
         <div className="image-grid">
           {images.map((image) => (
-            <article key={image.id} className="image-card">
+            <article
+              key={image.id}
+              className={`image-card${image.id === selectedImageId ? ' selected' : ''}`}
+              onClick={() => onImageClick?.(image)}
+            >
               {image.imageUrl ? <img src={image.imageUrl} alt={title} loading="lazy" /> : null}
               <div className="image-meta">
                 <strong>{image.distanceMeters ? `${image.distanceMeters} m away` : 'Nearby image'}</strong>
@@ -694,7 +745,7 @@ async function fetchNearbyMapillaryImages(point, token) {
     const url = new URL('https://graph.mapillary.com/images');
     url.search = new URLSearchParams({
       access_token: token,
-      fields: 'id,captured_at,thumb_1024_url,geometry,compass_angle',
+      fields: 'id,captured_at,thumb_1024_url,geometry,computed_geometry,compass_angle,computed_compass_angle,camera_type,is_pano',
       bbox: buildBbox(point, delta).join(','),
       limit: '8',
     }).toString();
@@ -836,7 +887,7 @@ function featureToLabel(feature) {
 }
 
 function normalizeImage(item, point) {
-  const geometry = item.geometry || item.computed_geometry;
+  const geometry = item.computed_geometry || item.geometry;
   const coordinates = geometry?.coordinates;
   const distanceMeters = Array.isArray(coordinates)
     ? Math.round(distanceBetween(point, { lng: coordinates[0], lat: coordinates[1] }))
@@ -846,14 +897,11 @@ function normalizeImage(item, point) {
     id: item.id,
     imageUrl: item.thumb_1024_url || item.thumb_2048_url || '',
     capturedAt: item.captured_at,
-    compassAngle: item.compass_angle,
+    compassAngle: item.computed_compass_angle ?? item.compass_angle ?? 0,
+    cameraType: item.camera_type || 'perspective',
+    isPano: item.is_pano || false,
     distanceMeters,
-    geometry: coordinates
-      ? {
-          type: 'Point',
-          coordinates,
-        }
-      : null,
+    geometry: coordinates ? { type: 'Point', coordinates } : null,
   };
 }
 
@@ -908,17 +956,60 @@ function toRouteGeoJson(route) {
   };
 }
 
-function toImageGeoJson(images) {
-  return {
-    type: 'FeatureCollection',
-    features: images
-      .filter((image) => image.geometry)
-      .map((image) => ({
-        type: 'Feature',
-        properties: { id: image.id },
-        geometry: image.geometry,
-      })),
-  };
+function toImageGeoJson(images, selectedImageId = null) {
+  const features = [];
+  for (const image of images) {
+    if (!image.geometry) continue;
+    const selected = image.id === selectedImageId;
+    const center = { lng: image.geometry.coordinates[0], lat: image.geometry.coordinates[1] };
+
+    features.push({
+      type: 'Feature',
+      properties: { kind: 'sector', id: image.id, selected },
+      geometry: buildSectorGeometry(center, image.compassAngle, image.cameraType, image.isPano),
+    });
+
+    features.push({
+      type: 'Feature',
+      properties: { kind: 'dot', id: image.id, selected },
+      geometry: image.geometry,
+    });
+  }
+  return { type: 'FeatureCollection', features };
+}
+
+function buildSectorGeometry(center, bearingDeg, cameraType, isPano) {
+  const spanDeg = isPano || cameraType === 'equirectangular' ? 360 : cameraType === 'fisheye' ? 150 : 65;
+  const radiusMeters = 20;
+  const steps = 32;
+
+  const latRad = (center.lat * Math.PI) / 180;
+  const metersPerDegLat = 111320;
+  const metersPerDegLng = 111320 * Math.cos(latRad);
+
+  if (spanDeg >= 360) {
+    const coords = [];
+    for (let i = 0; i <= steps; i++) {
+      const a = (i / steps) * 2 * Math.PI;
+      coords.push([
+        center.lng + (Math.sin(a) * radiusMeters) / metersPerDegLng,
+        center.lat + (Math.cos(a) * radiusMeters) / metersPerDegLat,
+      ]);
+    }
+    return { type: 'Polygon', coordinates: [coords] };
+  }
+
+  const halfSpan = spanDeg / 2;
+  const coords = [[center.lng, center.lat]];
+  for (let i = 0; i <= steps; i++) {
+    const a = ((bearingDeg - halfSpan + (i / steps) * spanDeg) * Math.PI) / 180;
+    coords.push([
+      center.lng + (Math.sin(a) * radiusMeters) / metersPerDegLng,
+      center.lat + (Math.cos(a) * radiusMeters) / metersPerDegLat,
+    ]);
+  }
+  coords.push([center.lng, center.lat]);
+  return { type: 'Polygon', coordinates: [coords] };
 }
 
 function distanceBetween(left, right) {
