@@ -33,6 +33,7 @@ function App() {
   const mapSelectionHandlerRef = useRef(null);
   const startMarkerRef = useRef(null);
   const endMarkerRef = useRef(null);
+  const imageCardRefs = useRef({});
 
   const [clickMode, setClickMode] = useState('start');
   const [startQuery, setStartQuery] = useState('');
@@ -49,6 +50,7 @@ function App() {
   const [imagesLoading, setImagesLoading] = useState(false);
   const [imagery, setImagery] = useState({ origin: [], destination: [] });
   const [imageryError, setImageryError] = useState('');
+  const [selectedImageId, setSelectedImageId] = useState(null);
 
   const proximity = useMemo(
     () => [startPoint, endPoint].find(Boolean) || { lng: GH_HQ.lng, lat: GH_HQ.lat },
@@ -137,6 +139,47 @@ function App() {
         },
       });
 
+      const selectImageFromMapPoint = (event) => {
+        const imageId = event.features?.[0]?.properties?.id;
+        if (imageId == null) return;
+
+        const selectedId = String(imageId);
+        setSelectedImageId(selectedId);
+        imageCardRefs.current[selectedId]?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      };
+
+      ['origin-images-layer', 'destination-images-layer'].forEach((layerId) => {
+        map.on('mouseenter', layerId, (event) => {
+          map.getCanvas().style.cursor = 'pointer';
+          selectImageFromMapPoint(event);
+        });
+
+        map.on('mouseleave', layerId, () => {
+          map.getCanvas().style.cursor = 'crosshair';
+          setSelectedImageId(null);
+        });
+      });
+
+      map.addSource('mapillary-lookup-points', {
+        type: 'geojson',
+        data: EMPTY_GEOJSON,
+      });
+
+      map.addLayer({
+        id: 'mapillary-lookup-points-layer',
+        type: 'circle',
+        source: 'mapillary-lookup-points',
+        paint: {
+          'circle-radius': 7,
+          'circle-color': '#facc15',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#000000',
+        },
+      });
+
       map.addSource('destination-images', {
         type: 'geojson',
         data: EMPTY_GEOJSON,
@@ -209,7 +252,10 @@ function App() {
     }
 
     source.setData(toRouteGeoJson(routeState.route));
-  }, [routeState.route]);
+    map.getSource('mapillary-lookup-points')?.setData(
+      mapillaryToken ? toMapillaryLookupPointGeoJson(routeState.route) : EMPTY_GEOJSON,
+    );
+  }, [routeState.route, mapillaryToken]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -220,6 +266,23 @@ function App() {
     map.getSource('origin-images')?.setData(toImageGeoJson(imagery.origin));
     map.getSource('destination-images')?.setData(toImageGeoJson(imagery.destination));
   }, [imagery]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapLoadedRef.current || !map) {
+      return;
+    }
+
+    const selectedId = selectedImageId == null ? '' : String(selectedImageId);
+    const isSelected = ['==', ['to-string', ['get', 'id']], selectedId];
+
+    ['origin-images-layer', 'destination-images-layer'].forEach((layerId) => {
+      if (!map.getLayer(layerId)) return;
+      map.setPaintProperty(layerId, 'circle-radius', ['case', isSelected, 11, 5]);
+      map.setPaintProperty(layerId, 'circle-stroke-width', ['case', isSelected, 4, 1.5]);
+      map.setPaintProperty(layerId, 'circle-stroke-color', ['case', isSelected, '#facc15', '#ffffff']);
+    });
+  }, [selectedImageId]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -275,35 +338,63 @@ function App() {
       });
 
       const originImagesPromise = mapillaryToken
-        ? fetchNearbyMapillaryImages(startPoint, mapillaryToken)
+      ? routePromise.then((routeResponse) => {
+        const firstRoutePoint = routeEndpointToPoint(routeResponse.route, 'first');
+        return firstRoutePoint
+          ? fetchNearbyMapillaryImages(firstRoutePoint, mapillaryToken)
+          : [];
+      })
         : Promise.resolve([]);
       const destinationImagesPromise = mapillaryToken
-        ? fetchNearbyMapillaryImages(endPoint, mapillaryToken)
+      ? routePromise.then((routeResponse) => {
+        const lastRoutePoint = routeEndpointToPoint(routeResponse.route, 'last');
+        return lastRoutePoint
+          ? fetchNearbyMapillaryImages(lastRoutePoint, mapillaryToken)
+          : [];
+      })
         : Promise.resolve([]);
 
-      const [routeResult, originImages, destinationImages] = await Promise.all([
-        routePromise,
-        originImagesPromise,
-        destinationImagesPromise,
-      ]);
+        const [routeResult, originImagesResult, destinationImagesResult] = await Promise.allSettled([
+          routePromise,
+          originImagesPromise,
+          destinationImagesPromise,
+        ]);
+  
+        if (routeResult.status === 'rejected') {
+          throw routeResult.reason;
+        }
 
-      if (routeResult.code !== 'Ok' || !routeResult.route) {
+        const routeResponse = routeResult.value;
+  
+        const originImages =
+          originImagesResult.status === 'fulfilled' ? originImagesResult.value : [];
+        const destinationImages =
+          destinationImagesResult.status === 'fulfilled' ? destinationImagesResult.value : [];
+
+      if (routeResponse.code !== 'Ok' || !routeResponse.route) {
         setRouteState({
           loading: false,
-          error: routeMessage(routeResult.code),
-          code: routeResult.code,
+          error: routeMessage(routeResponse.code),
+          code: routeResponse.code,
           route: null,
         });
       } else {
         setRouteState({
           loading: false,
           error: '',
-          code: routeResult.code,
-          route: routeResult.route,
+          code: routeResponse.code,
+          route: routeResponse.route,
         });
       }
 
       setImagery({ origin: originImages, destination: destinationImages });
+
+      if (
+        originImagesResult.status === 'rejected' ||
+        destinationImagesResult.status === 'rejected'
+      ) {
+        setImageryError('Route loaded, but Mapillary imagery could not be loaded.');
+      }
 
       if (!mapillaryToken) {
         setImageryError('Add a Mapillary client token to load nearby street-level imagery.');
@@ -485,8 +576,20 @@ function App() {
             {imagesLoading ? <span className="loading-pill">Loading…</span> : null}
           </div>
 
-          <ImageBucket title="Origin frontage" images={imagery.origin} />
-          <ImageBucket title="Destination frontage" images={imagery.destination} />
+          <ImageBucket
+            title="Origin frontage"
+            images={imagery.origin}
+            selectedImageId={selectedImageId}
+            onSelectImage={setSelectedImageId}
+            imageCardRefs={imageCardRefs}
+          />
+          <ImageBucket
+            title="Destination frontage"
+            images={imagery.destination}
+            selectedImageId={selectedImageId}
+            onSelectImage={setSelectedImageId}
+            imageCardRefs={imageCardRefs}
+          />
 
           {imageryError ? <p className="error-text">{imageryError}</p> : null}
           {!mapillaryToken ? (
@@ -640,21 +743,38 @@ function PointMeta({ point }) {
   );
 }
 
-function ImageBucket({ title, images }) {
+function ImageBucket({ title, images, selectedImageId, onSelectImage, imageCardRefs }) {
   return (
     <div className="image-bucket">
       <h3>{title}</h3>
       {images.length ? (
         <div className="image-grid">
-          {images.map((image) => (
-            <article key={image.id} className="image-card">
-              {image.imageUrl ? <img src={image.imageUrl} alt={title} loading="lazy" /> : null}
-              <div className="image-meta">
-                <strong>{image.distanceMeters ? `${image.distanceMeters} m away` : 'Nearby image'}</strong>
-                <span>{image.capturedAt ? formatDate(image.capturedAt) : 'Capture date unavailable'}</span>
-              </div>
-            </article>
-          ))}
+          {images.map((image) => {
+            const imageId = String(image.id);
+            const isSelected = selectedImageId === imageId;
+
+            return (
+              <article
+                key={image.id}
+                ref={(element) => {
+                  if (element) {
+                    imageCardRefs.current[imageId] = element;
+                  } else {
+                    delete imageCardRefs.current[imageId];
+                  }
+                }}
+                className={`image-card ${isSelected ? 'selected' : ''}`}
+                onMouseEnter={() => onSelectImage?.(imageId)}
+                onMouseLeave={() => onSelectImage?.(null)}
+              >
+                {image.imageUrl ? <img src={image.imageUrl} alt={title} loading="lazy" /> : null}
+                <div className="image-meta">
+                  <strong>{image.distanceMeters ? `${image.distanceMeters} m away` : 'Nearby image'}</strong>
+                  <span>{image.capturedAt ? formatDate(image.capturedAt) : 'Capture date unavailable'}</span>
+                </div>
+              </article>
+            );
+          })}
         </div>
       ) : (
         <p className="empty-state">No imagery loaded yet.</p>
@@ -690,14 +810,12 @@ async function fetchAccessibleRoute({ accessMapBase, startPoint, endPoint, prefs
 }
 
 async function fetchNearbyMapillaryImages(point, token) {
-  for (const delta of [0.00075, 0.0015]) {
-    const url = new URL('https://graph.mapillary.com/images');
-    url.search = new URLSearchParams({
-      access_token: token,
-      fields: 'id,captured_at,thumb_1024_url,geometry,compass_angle',
-      bbox: buildBbox(point, delta).join(','),
-      limit: '8',
-    }).toString();
+  const url = new URL('https://graph.mapillary.com/images');
+  url.search = new URLSearchParams({
+    access_token: token,
+    fields: 'id,captured_at,thumb_1024_url,geometry,compass_angle',
+    bbox: buildBboxMeters(point, 30).join(','),
+  }).toString();
 
     const response = await fetch(url.toString());
     if (!response.ok) {
@@ -705,18 +823,15 @@ async function fetchNearbyMapillaryImages(point, token) {
     }
 
     const data = await response.json();
-    const items = (data.data || [])
+    return (data.data || [])
       .map((item) => normalizeImage(item, point))
       .filter((item) => item.imageUrl)
       .sort((left, right) => (left.distanceMeters || Infinity) - (right.distanceMeters || Infinity))
-      .slice(0, 4);
-
-    if (items.length) {
-      return items;
-    }
-  }
-
-  return [];
+      .sort(
+        (left, right) =>
+          new Date(right.capturedAt || 0).getTime() -
+          new Date(left.capturedAt || 0).getTime(),
+      );
 }
 
 async function forwardLookup(query, token, proximity, signal) {
@@ -794,14 +909,6 @@ function createMarkerElement(kind) {
 }
 
 function featureToPoint(feature) {
-  const routablePoint = feature?.properties?.coordinates?.routable_points?.[0];
-  if (routablePoint?.longitude != null && routablePoint?.latitude != null) {
-    return {
-      lng: routablePoint.longitude,
-      lat: routablePoint.latitude,
-    };
-  }
-
   if (Array.isArray(feature?.geometry?.coordinates)) {
     return {
       lng: feature.geometry.coordinates[0],
@@ -814,6 +921,14 @@ function featureToPoint(feature) {
     return {
       lng: rawCoordinates.longitude,
       lat: rawCoordinates.latitude,
+    };
+  }
+
+  const routablePoint = feature?.properties?.coordinates?.routable_points?.[0];
+  if (routablePoint?.longitude != null && routablePoint?.latitude != null) {
+    return {
+      lng: routablePoint.longitude,
+      lat: routablePoint.latitude,
     };
   }
 
@@ -857,8 +972,26 @@ function normalizeImage(item, point) {
   };
 }
 
-function buildBbox(point, delta) {
-  return [point.lng - delta, point.lat - delta, point.lng + delta, point.lat + delta];
+function routeEndpointToPoint(route, endpoint) {
+  const coordinates = route?.geometry?.coordinates;
+  if (!coordinates?.length) {
+    return null;
+  }
+
+  const coordinate = endpoint === 'first'
+    ? coordinates[0]
+    : coordinates[coordinates.length - 1];
+
+  return {
+    lng: coordinate[0],
+    lat: coordinate[1],
+  };
+}
+
+function buildBboxMeters(point, meters) {
+  const latDelta = meters / 111320;
+  const lngDelta = meters / (111320 * Math.cos((point.lat * Math.PI) / 180));
+  return [point.lng - lngDelta, point.lat - latDelta, point.lng + lngDelta, point.lat + latDelta];
 }
 
 function toRouteGeoJson(route) {
@@ -918,6 +1051,35 @@ function toImageGeoJson(images) {
         properties: { id: image.id },
         geometry: image.geometry,
       })),
+  };
+}
+
+function toMapillaryLookupPointGeoJson(route) {
+  const coordinates = route?.geometry?.coordinates;
+  if (!coordinates?.length) {
+    return EMPTY_GEOJSON;
+  }
+
+  return {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        properties: { endpoint: 'origin' },
+        geometry: {
+          type: 'Point',
+          coordinates: coordinates[0],
+        },
+      },
+      {
+        type: 'Feature',
+        properties: { endpoint: 'destination' },
+        geometry: {
+          type: 'Point',
+          coordinates: coordinates[coordinates.length - 1],
+        },
+      },
+    ],
   };
 }
 

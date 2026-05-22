@@ -134,6 +134,11 @@ code {
   background: #ffffff;
 }
 
+.image-card.selected {
+  border-color: #facc15;
+  box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.35);
+}
+
 .geocoder-input:focus {
   outline: 2px solid rgba(37, 99, 235, 0.2);
   border-color: #2563eb;
@@ -345,12 +350,13 @@ code {
 
 .image-grid {
   display: grid;
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
 .image-card {
   display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
+  grid-template-columns: 1fr;
   gap: 10px;
   align-items: start;
   border: 1px solid #e2e8f0;
@@ -360,8 +366,8 @@ code {
 }
 
 .image-card img {
-  width: 112px;
-  height: 84px;
+  width: 100%;
+  height: auto;
   object-fit: cover;
   border-radius: 8px;
   background: #e2e8f0;
