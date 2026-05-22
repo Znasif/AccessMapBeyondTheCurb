@@ -386,7 +386,8 @@ function App() {
     const handler = () => {
       const results = queryNearbyBuildings(map, startPoint);
       setNearbyBuildings((prev) => ({ ...prev, origin: results }));
-      map.getSource('origin-buildings')?.setData({ type: 'FeatureCollection', features: results });
+      const target = findTargetBuilding(startPoint, results);
+      map.getSource('origin-buildings')?.setData({ type: 'FeatureCollection', features: target ? [target] : [] });
     };
     map.once('idle', handler);
     return () => map.off('idle', handler);
@@ -399,7 +400,8 @@ function App() {
     const handler = () => {
       const results = queryNearbyBuildings(map, endPoint);
       setNearbyBuildings((prev) => ({ ...prev, destination: results }));
-      map.getSource('destination-buildings')?.setData({ type: 'FeatureCollection', features: results });
+      const target = findTargetBuilding(endPoint, results);
+      map.getSource('destination-buildings')?.setData({ type: 'FeatureCollection', features: target ? [target] : [] });
     };
     map.once('idle', handler);
     return () => map.off('idle', handler);
