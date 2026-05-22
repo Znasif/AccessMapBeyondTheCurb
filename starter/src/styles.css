@@ -355,6 +355,7 @@ code {
 }
 
 .image-card {
+  position: relative;
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
@@ -370,6 +371,19 @@ code {
 .image-card.selected {
   border-color: #f59e0b;
   box-shadow: 0 0 0 2px #f59e0b55;
+}
+
+.entrance-badge {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 1.5px solid #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  pointer-events: none;
 }
 
 .image-card img {
@@ -581,6 +595,46 @@ code {
   border: 2px solid #fff;
   border-radius: 999px;
   transform: translate(-50%, -50%);
+}
+
+/* Entrance detection bar — green, draggable, shown on both flat and pano viewers */
+.viewer-entrance-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: rgba(34, 197, 94, 0.95);
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+  transform: translateX(-50%);
+  cursor: ew-resize;
+  z-index: 10;
+}
+
+.viewer-entrance-bar::before {
+  content: 'Entrance';
+  position: absolute;
+  top: 8px;
+  left: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #22c55e;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.viewer-entrance-bar::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  background: #22c55e;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
 
 @media (max-width: 980px) {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import '@photo-sphere-viewer/core/index.css';
+import { loadEntranceModel, detectEntrance } from './entranceDetector';
 
 const GH_HQ = {
   lng: -122.391,
@@ -54,6 +55,8 @@ function App() {
   const [selectedImageId, setSelectedImageId] = useState(null);
   const [nearbyBuildings, setNearbyBuildings] = useState({ origin: [], destination: [] });
   const [expandedImage, setExpandedImage] = useState(null);
+  const [entranceOverlays, setEntranceOverlays] = useState({});
+  const modelRef = useRef(null);
 
   const proximity = useMemo(
     () => [startPoint, endPoint].find(Boolean) || { lng: GH_HQ.lng, lat: GH_HQ.lat },
@@ -295,7 +298,7 @@ function App() {
         },
       });
 
-      // Heading line — rendered on top of everything else
+      // Heading line (white dashed) — where you are currently looking
       map.addSource('heading-line', { type: 'geojson', data: EMPTY_GEOJSON });
       map.addLayer({
         id: 'heading-line-layer',
@@ -306,6 +309,19 @@ function App() {
           'line-width': 2,
           'line-opacity': 0.95,
           'line-dasharray': [3, 2],
+        },
+      });
+
+      // Entrance line (green solid) — detected entrance direction, fixed while panning
+      map.addSource('entrance-line', { type: 'geojson', data: EMPTY_GEOJSON });
+      map.addLayer({
+        id: 'entrance-line-layer',
+        type: 'line',
+        source: 'entrance-line',
+        paint: {
+          'line-color': '#22c55e',
+          'line-width': 2.5,
+          'line-opacity': 0.95,
         },
       });
     });
@@ -468,6 +484,7 @@ function App() {
     setRouteState({ loading: true, error: '', code: '', route: null });
     setImagesLoading(true);
     setImageryError('');
+    setEntranceOverlays({});
 
     try {
       const routePromise = fetchAccessibleRoute({
@@ -534,6 +551,7 @@ function App() {
       }
 
       setImagery({ origin: originImages, destination: destinationImages });
+      runEntranceDetection([...originImages, ...destinationImages]);
 
       if (
         originImagesResult.status === 'rejected' ||
@@ -561,6 +579,31 @@ function App() {
     } finally {
       setImagesLoading(false);
     }
+  }
+
+  async function runEntranceDetection(images) {
+    console.log(`[entrance] starting detection on ${images.length} image(s)`);
+    try {
+      if (!modelRef.current) {
+        console.log('[entrance] loading ONNX model…');
+        modelRef.current = await loadEntranceModel();
+        console.log('[entrance] model ready');
+      }
+    } catch (e) {
+      console.warn('[entrance] model failed to load:', e);
+      return;
+    }
+    for (const image of images) {
+      if (!image.imageUrl) continue;
+      try {
+        const result = await detectEntrance(image.imageUrl, modelRef.current);
+        console.log(`[entrance] ${image.id} →`, result ?? 'no detection');
+        setEntranceOverlays((prev) => ({ ...prev, [String(image.id)]: result }));
+      } catch (e) {
+        console.warn(`[entrance] detection failed for ${image.id}:`, e);
+      }
+    }
+    console.log('[entrance] done');
   }
 
   return (
@@ -729,6 +772,7 @@ function App() {
             onSelectImage={setSelectedImageId}
             imageCardRefs={imageCardRefs}
             onExpandImage={setExpandedImage}
+            entranceOverlays={entranceOverlays}
           />
           <ImageBucket
             title="Destination frontage"
@@ -737,6 +781,7 @@ function App() {
             onSelectImage={setSelectedImageId}
             imageCardRefs={imageCardRefs}
             onExpandImage={setExpandedImage}
+            entranceOverlays={entranceOverlays}
           />
 
           {imageryError ? <p className="error-text">{imageryError}</p> : null}
@@ -761,6 +806,7 @@ function App() {
         {expandedImage ? (
           <ImageViewer
             image={expandedImage}
+            entranceFraction={entranceOverlays[String(expandedImage.id)]?.barFraction ?? null}
             mapRef={mapRef}
             mapLoadedRef={mapLoadedRef}
             onClose={() => setExpandedImage(null)}
@@ -900,7 +946,7 @@ function PointMeta({ point }) {
   );
 }
 
-function ImageBucket({ title, images, selectedImageId, onSelectImage, imageCardRefs, onExpandImage }) {
+function ImageBucket({ title, images, selectedImageId, onSelectImage, imageCardRefs, onExpandImage, entranceOverlays }) {
   return (
     <div className="image-bucket">
       <h3>{title}</h3>
@@ -909,6 +955,8 @@ function ImageBucket({ title, images, selectedImageId, onSelectImage, imageCardR
           {images.map((image) => {
             const imageId = String(image.id);
             const isSelected = selectedImageId === imageId;
+            const detection = entranceOverlays?.[imageId];
+            const hasEntrance = detection != null;
 
             return (
               <article
@@ -926,6 +974,9 @@ function ImageBucket({ title, images, selectedImageId, onSelectImage, imageCardR
                 onMouseLeave={() => onSelectImage?.(null)}
               >
                 {image.imageUrl ? <img src={image.imageUrl} alt={title} loading="lazy" /> : null}
+                {hasEntrance && (
+                  <div className="entrance-badge" title={`Entrance detected (conf ${detection.confidence.toFixed(2)})`} />
+                )}
                 <div className="image-meta">
                   <strong>{image.distanceMeters ? `${image.distanceMeters} m away` : 'Nearby image'}</strong>
                   <span>{image.capturedAt ? formatDate(image.capturedAt) : 'Capture date unavailable'}</span>
@@ -1183,20 +1234,67 @@ function updateHeadingLine(map, loaded, image, headingAngle) {
   });
 }
 
-function ImageViewer({ image, mapRef, mapLoadedRef, onClose }) {
+function updateMapEntranceLine(map, loaded, image, bearingAngle) {
+  if (!map || !loaded) return;
+  const source = map.getSource('entrance-line');
+  if (!source) return;
+
+  if (!image?.geometry) {
+    source.setData(EMPTY_GEOJSON);
+    return;
+  }
+
+  const [lng, lat] = image.geometry.coordinates;
+  const radiusMeters = 20;
+  const latRad = (lat * Math.PI) / 180;
+  const a = (bearingAngle * Math.PI) / 180;
+
+  source.setData({
+    type: 'FeatureCollection',
+    features: [{
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [lng, lat],
+          [
+            lng + (Math.sin(a) * radiusMeters) / (111320 * Math.cos(latRad)),
+            lat + (Math.cos(a) * radiusMeters) / 111320,
+          ],
+        ],
+      },
+    }],
+  });
+}
+
+function ImageViewer({ image, entranceFraction, mapRef, mapLoadedRef, onClose }) {
   return (
     <div className="viewer-panel">
       {image.isPano
-        ? <PanoViewer image={image} mapRef={mapRef} mapLoadedRef={mapLoadedRef} onClose={onClose} />
-        : <FlatViewer image={image} mapRef={mapRef} mapLoadedRef={mapLoadedRef} onClose={onClose} />
+        ? <PanoViewer image={image} entranceFraction={entranceFraction} mapRef={mapRef} mapLoadedRef={mapLoadedRef} onClose={onClose} />
+        : <FlatViewer image={image} entranceFraction={entranceFraction} mapRef={mapRef} mapLoadedRef={mapLoadedRef} onClose={onClose} />
       }
     </div>
   );
 }
 
-function PanoViewer({ image, mapRef, mapLoadedRef, onClose }) {
+function PanoViewer({ image, entranceFraction, mapRef, mapLoadedRef, onClose }) {
   const containerRef = useRef(null);
+  const psvRef = useRef(null);
+  const entranceFractionRef = useRef(entranceFraction);
 
+  // Sync ref and react to late-arriving detections without recreating the viewer
+  useEffect(() => {
+    entranceFractionRef.current = entranceFraction;
+    if (entranceFraction == null || !psvRef.current) return;
+    const entranceYaw = (entranceFraction - 0.5) * 2 * Math.PI;
+    const entranceBearing = ((image.compassAngle + (entranceFraction - 0.5) * 360) % 360 + 360) % 360;
+    updateMapEntranceLine(mapRef.current, mapLoadedRef.current, image, entranceBearing);
+    psvRef.current.animate({ yaw: entranceYaw, pitch: 0, speed: '3rpm' });
+  }, [entranceFraction]);
+
+  // Create/destroy PSV only when the image changes
   useEffect(() => {
     if (!containerRef.current) return;
     let viewer;
@@ -1213,16 +1311,28 @@ function PanoViewer({ image, mapRef, mapLoadedRef, onClose }) {
         loadingImg: null,
         touchmoveTwoFingers: false,
       });
+      psvRef.current = viewer;
 
       viewer.addEventListener('position-updated', ({ position }) => {
         const yawDeg = (position.yaw * 180) / Math.PI;
-        const heading = (image.compassAngle + yawDeg + 360) % 360;
-        updateHeadingLine(mapRef.current, mapLoadedRef.current, image, heading);
+        updateHeadingLine(mapRef.current, mapLoadedRef.current, image,
+          (image.compassAngle + yawDeg + 360) % 360);
+      });
+
+      viewer.addEventListener('ready', () => {
+        const fraction = entranceFractionRef.current;
+        if (fraction == null) return;
+        const entranceYaw = (fraction - 0.5) * 2 * Math.PI;
+        const entranceBearing = ((image.compassAngle + (fraction - 0.5) * 360) % 360 + 360) % 360;
+        updateMapEntranceLine(mapRef.current, mapLoadedRef.current, image, entranceBearing);
+        viewer.animate({ yaw: entranceYaw, pitch: 0, speed: '3rpm' });
       });
     });
 
     return () => {
+      psvRef.current = null;
       updateHeadingLine(mapRef.current, mapLoadedRef.current, null, 0);
+      updateMapEntranceLine(mapRef.current, mapLoadedRef.current, null, 0);
       viewer?.destroy();
     };
   }, [image.id]);
@@ -1230,7 +1340,7 @@ function PanoViewer({ image, mapRef, mapLoadedRef, onClose }) {
   return (
     <>
       <div className="viewer-panel-header">
-        <span className="viewer-panel-label">360° · pan to aim</span>
+        <span className="viewer-panel-label">360° · pan to aim · green line = entrance</span>
         <button className="viewer-close" onClick={onClose}>×</button>
       </div>
       <div ref={containerRef} className="viewer-pano-container" />
@@ -1239,11 +1349,16 @@ function PanoViewer({ image, mapRef, mapLoadedRef, onClose }) {
   );
 }
 
-function FlatViewer({ image, mapRef, mapLoadedRef, onClose }) {
+function FlatViewer({ image, entranceFraction, mapRef, mapLoadedRef, onClose }) {
   const [barFraction, setBarFraction] = useState(0.5);
-  const isDragging = useRef(false);
+  const [entranceBarFraction, setEntranceBarFraction] = useState(entranceFraction ?? null);
+  const dragging = useRef(null); // null | 'heading' | 'entrance'
   const containerRef = useRef(null);
   const halfFov = (image.cameraType === 'fisheye' ? 150 : 65) / 2;
+
+  useEffect(() => {
+    if (entranceFraction != null) setEntranceBarFraction(entranceFraction);
+  }, [entranceFraction]);
 
   useEffect(() => {
     updateHeadingLine(mapRef.current, mapLoadedRef.current, image, image.compassAngle);
@@ -1251,12 +1366,16 @@ function FlatViewer({ image, mapRef, mapLoadedRef, onClose }) {
   }, [image.id]);
 
   function handlePointerMove(e) {
-    if (!isDragging.current) return;
+    if (!dragging.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    setBarFraction(fraction);
-    const heading = (image.compassAngle - halfFov + fraction * halfFov * 2 + 360) % 360;
-    updateHeadingLine(mapRef.current, mapLoadedRef.current, image, heading);
+    if (dragging.current === 'heading') {
+      setBarFraction(fraction);
+      updateHeadingLine(mapRef.current, mapLoadedRef.current, image,
+        (image.compassAngle - halfFov + fraction * halfFov * 2 + 360) % 360);
+    } else {
+      setEntranceBarFraction(fraction);
+    }
   }
 
   return (
@@ -1268,12 +1387,18 @@ function FlatViewer({ image, mapRef, mapLoadedRef, onClose }) {
       <div
         ref={containerRef}
         className="viewer-flat-container"
-        onPointerDown={(e) => { isDragging.current = true; e.currentTarget.setPointerCapture(e.pointerId); }}
-        onPointerUp={() => { isDragging.current = false; }}
+        onPointerDown={(e) => {
+          dragging.current = e.target.classList.contains('viewer-entrance-bar') ? 'entrance' : 'heading';
+          e.currentTarget.setPointerCapture(e.pointerId);
+        }}
+        onPointerUp={() => { dragging.current = null; }}
         onPointerMove={handlePointerMove}
       >
         <img src={image.imageUrl} alt="" draggable={false} />
         <div className="viewer-heading-bar" style={{ left: `${barFraction * 100}%` }} />
+        {entranceBarFraction != null && (
+          <div className="viewer-entrance-bar" style={{ left: `${entranceBarFraction * 100}%` }} />
+        )}
       </div>
     </>
   );
