@@ -56,6 +56,7 @@ function App() {
   const [nearbyBuildings, setNearbyBuildings] = useState({ origin: [], destination: [] });
   const [expandedImage, setExpandedImage] = useState(null);
   const [entranceOverlays, setEntranceOverlays] = useState({});
+  const [savedEntrances, setSavedEntrances] = useState({});  // imageId → true
   const modelRef = useRef(null);
 
   const proximity = useMemo(
@@ -515,6 +516,7 @@ function App() {
     setImagesLoading(true);
     setImageryError('');
     setEntranceOverlays({});
+    setSavedEntrances({});
 
     try {
       const routePromise = fetchAccessibleRoute({
@@ -608,6 +610,66 @@ function App() {
       setImageryError(mapillaryToken ? 'Could not load Mapillary imagery.' : '');
     } finally {
       setImagesLoading(false);
+    }
+  }
+
+  function handleEntranceAdjusted(imageId, barFraction) {
+    setEntranceOverlays((prev) => ({
+      ...prev,
+      [String(imageId)]: { ...prev[String(imageId)], barFraction, adjusted: true },
+    }));
+  }
+
+  const proposedEntrances = useMemo(() => {
+    const targetOrigin = startPoint ? findTargetBuilding(startPoint, nearbyBuildings.origin) : null;
+    const targetDest   = endPoint   ? findTargetBuilding(endPoint,   nearbyBuildings.destination) : null;
+    const proposals = [];
+    for (const [side, images, target] of [
+      ['origin',      imagery.origin,      targetOrigin],
+      ['destination', imagery.destination, targetDest],
+    ]) {
+      for (const image of images) {
+        const detection = entranceOverlays[String(image.id)];
+        if (!detection) continue;
+        const bearing = ((image.compassAngle + (detection.barFraction - 0.5) * 360) % 360 + 360) % 360;
+        proposals.push({
+          imageId:    String(image.id),
+          image,
+          side,
+          barFraction: detection.barFraction,
+          confidence:  detection.confidence,
+          adjusted:    detection.adjusted ?? false,
+          bearing,
+          coordinate:  computeEntrancePoint(image, bearing, target),
+        });
+      }
+    }
+    return proposals;
+  }, [entranceOverlays, imagery, nearbyBuildings, startPoint, endPoint]);
+
+  async function handleSaveEntrance(proposal) {
+    if (!proposal.coordinate) return;
+    const feature = {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: proposal.coordinate },
+      properties: {
+        entrance: 'yes',
+        source_image_id: proposal.imageId,
+        confidence: proposal.confidence,
+        detection_adjusted: proposal.adjusted,
+        detection_method: 'yolo_mapillary',
+      },
+    };
+    try {
+      const res = await fetch('/api/save-entrance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feature }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setSavedEntrances((prev) => ({ ...prev, [proposal.imageId]: true }));
+    } catch (e) {
+      console.error('Save failed:', e);
     }
   }
 
@@ -819,6 +881,42 @@ function App() {
             <p className="inline-note">Use a Mapillary client token for nearby thumbnail imagery.</p>
           ) : null}
         </section>
+
+        {proposedEntrances.length > 0 && (
+          <section className="panel-section compact">
+            <h2>Entrance proposals</h2>
+            <ul className="entrance-list">
+              {proposedEntrances.map((p) => (
+                <li key={p.imageId} className={`entrance-item ${p.side}`}>
+                  <span className="entrance-dot" />
+                  <div className="entrance-body">
+                    {p.coordinate ? (
+                      <code className="entrance-coord">
+                        {p.coordinate[1].toFixed(6)}, {p.coordinate[0].toFixed(6)}
+                      </code>
+                    ) : (
+                      <em className="entrance-no-hit">No building intersection</em>
+                    )}
+                    <span className="entrance-meta">
+                      conf {p.confidence.toFixed(2)}{p.adjusted ? ' · adjusted' : ''}
+                    </span>
+                  </div>
+                  {p.coordinate && (
+                    <button
+                      type="button"
+                      className={`entrance-save-btn ${savedEntrances[p.imageId] ? 'saved' : ''}`}
+                      onClick={() => handleSaveEntrance(p)}
+                      disabled={!!savedEntrances[p.imageId]}
+                      title="Save to ca.sanfrancisco.graph.polygons.geojson"
+                    >
+                      {savedEntrances[p.imageId] ? '✓' : 'Save'}
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </aside>
 
       <main className="map-panel">
@@ -837,6 +935,7 @@ function App() {
           <ImageViewer
             image={expandedImage}
             entranceFraction={entranceOverlays[String(expandedImage.id)]?.barFraction ?? null}
+            onEntranceAdjusted={handleEntranceAdjusted}
             mapRef={mapRef}
             mapLoadedRef={mapLoadedRef}
             onClose={() => setExpandedImage(null)}
@@ -1298,21 +1397,22 @@ function updateMapEntranceLine(map, loaded, image, bearingAngle) {
   });
 }
 
-function ImageViewer({ image, entranceFraction, mapRef, mapLoadedRef, onClose }) {
+function ImageViewer({ image, entranceFraction, onEntranceAdjusted, mapRef, mapLoadedRef, onClose }) {
   return (
     <div className="viewer-panel">
       {image.isPano
-        ? <PanoViewer image={image} entranceFraction={entranceFraction} mapRef={mapRef} mapLoadedRef={mapLoadedRef} onClose={onClose} />
-        : <FlatViewer image={image} entranceFraction={entranceFraction} mapRef={mapRef} mapLoadedRef={mapLoadedRef} onClose={onClose} />
+        ? <PanoViewer image={image} entranceFraction={entranceFraction} onEntranceAdjusted={onEntranceAdjusted} mapRef={mapRef} mapLoadedRef={mapLoadedRef} onClose={onClose} />
+        : <FlatViewer image={image} entranceFraction={entranceFraction} onEntranceAdjusted={onEntranceAdjusted} mapRef={mapRef} mapLoadedRef={mapLoadedRef} onClose={onClose} />
       }
     </div>
   );
 }
 
-function PanoViewer({ image, entranceFraction, mapRef, mapLoadedRef, onClose }) {
+function PanoViewer({ image, entranceFraction, onEntranceAdjusted, mapRef, mapLoadedRef, onClose }) {
   const containerRef = useRef(null);
   const psvRef = useRef(null);
   const entranceFractionRef = useRef(entranceFraction);
+  const currentYawRef = useRef(0);
 
   // Sync ref and react to late-arriving detections without recreating the viewer
   useEffect(() => {
@@ -1342,6 +1442,7 @@ function PanoViewer({ image, entranceFraction, mapRef, mapLoadedRef, onClose }) 
       psvRef.current = viewer;
 
       viewer.addEventListener('position-updated', ({ position }) => {
+        currentYawRef.current = position.yaw;
         const yawDeg = (position.yaw * 180) / Math.PI;
         updateHeadingLine(mapRef.current, mapLoadedRef.current, image,
           (image.compassAngle + yawDeg + 360) % 360);
@@ -1365,8 +1466,21 @@ function PanoViewer({ image, entranceFraction, mapRef, mapLoadedRef, onClose }) 
   return (
     <>
       <div className="viewer-panel-header">
-        <span className="viewer-panel-label">360° · pan to aim · green line = entrance</span>
-        <button className="viewer-close" onClick={onClose}>×</button>
+        <span className="viewer-panel-label">360° · pan to aim · green = entrance</span>
+        <div className="viewer-header-actions">
+          <button
+            type="button"
+            className="viewer-mark-entrance-btn"
+            onClick={() => {
+              const fraction = ((currentYawRef.current / (2 * Math.PI) + 0.5) % 1 + 1) % 1;
+              onEntranceAdjusted?.(image.id, fraction);
+            }}
+            title="Mark the crosshair position as the entrance"
+          >
+            Mark entrance
+          </button>
+          <button className="viewer-close" onClick={onClose}>×</button>
+        </div>
       </div>
       <div ref={containerRef} className="viewer-pano-container" />
       <div className="viewer-crosshair" />
@@ -1374,15 +1488,19 @@ function PanoViewer({ image, entranceFraction, mapRef, mapLoadedRef, onClose }) 
   );
 }
 
-function FlatViewer({ image, entranceFraction, mapRef, mapLoadedRef, onClose }) {
+function FlatViewer({ image, entranceFraction, onEntranceAdjusted, mapRef, mapLoadedRef, onClose }) {
   const [barFraction, setBarFraction] = useState(0.5);
   const [entranceBarFraction, setEntranceBarFraction] = useState(entranceFraction ?? null);
   const dragging = useRef(null); // null | 'heading' | 'entrance'
+  const currentEntranceFractionRef = useRef(entranceFraction ?? null);
   const containerRef = useRef(null);
   const halfFov = (image.cameraType === 'fisheye' ? 150 : 65) / 2;
 
   useEffect(() => {
-    if (entranceFraction != null) setEntranceBarFraction(entranceFraction);
+    if (entranceFraction != null) {
+      setEntranceBarFraction(entranceFraction);
+      currentEntranceFractionRef.current = entranceFraction;
+    }
   }, [entranceFraction]);
 
   useEffect(() => {
@@ -1400,6 +1518,7 @@ function FlatViewer({ image, entranceFraction, mapRef, mapLoadedRef, onClose }) 
         (image.compassAngle - halfFov + fraction * halfFov * 2 + 360) % 360);
     } else {
       setEntranceBarFraction(fraction);
+      currentEntranceFractionRef.current = fraction;
     }
   }
 
@@ -1416,7 +1535,12 @@ function FlatViewer({ image, entranceFraction, mapRef, mapLoadedRef, onClose }) 
           dragging.current = e.target.classList.contains('viewer-entrance-bar') ? 'entrance' : 'heading';
           e.currentTarget.setPointerCapture(e.pointerId);
         }}
-        onPointerUp={() => { dragging.current = null; }}
+        onPointerUp={() => {
+          if (dragging.current === 'entrance' && currentEntranceFractionRef.current != null) {
+            onEntranceAdjusted?.(image.id, currentEntranceFractionRef.current);
+          }
+          dragging.current = null;
+        }}
         onPointerMove={handlePointerMove}
       >
         <img src={image.imageUrl} alt="" draggable={false} />
@@ -1775,6 +1899,42 @@ function formatDate(value) {
   } catch {
     return value;
   }
+}
+
+function computeEntrancePoint(image, bearing, buildingFeature) {
+  if (!image.geometry || !buildingFeature?.geometry) return null;
+
+  const [camLng, camLat] = image.geometry.coordinates;
+  const cosLat = Math.cos((camLat * Math.PI) / 180);
+  const cx = camLng * cosLat;
+  const cy = camLat;
+  const bearingRad = (bearing * Math.PI) / 180;
+  const dx = Math.sin(bearingRad);
+  const dy = Math.cos(bearingRad);
+
+  const geom = buildingFeature.geometry;
+  const rings = geom.type === 'MultiPolygon' ? geom.coordinates[0] : geom.coordinates;
+  const ring  = rings[0];
+
+  let best = null;
+  let bestT = Infinity;
+
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const ax = ring[j][0] * cosLat, ay = ring[j][1];
+    const bx = ring[i][0] * cosLat, by = ring[i][1];
+    const ex = bx - ax, ey = by - ay;
+    const denom = dy * ex - dx * ey;
+    if (Math.abs(denom) < 1e-14) continue;
+    const fx = ax - cx, fy = ay - cy;
+    const t = (fy * ex - fx * ey) / denom;
+    const u = (dx * fy - dy * fx) / denom;
+    if (t > 0.001 && u >= 0 && u <= 1 && t < bestT) {
+      bestT = t;
+      best = [(cx + t * dx) / cosLat, cy + t * dy]; // [lng, lat]
+    }
+  }
+
+  return best;
 }
 
 function routeMessage(code) {

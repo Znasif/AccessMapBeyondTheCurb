@@ -597,6 +597,107 @@ code {
   transform: translate(-50%, -50%);
 }
 
+/* ---- Entrance proposals list ---- */
+.entrance-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.entrance-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.entrance-dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+.entrance-item.origin      .entrance-dot { background: #dc2626; }
+.entrance-item.destination .entrance-dot { background: #16a34a; }
+
+.entrance-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.entrance-coord {
+  font-size: 11px;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.entrance-no-hit {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.entrance-meta {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.entrance-save-btn {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #2563eb;
+  border-radius: 4px;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+.entrance-save-btn:hover:not(:disabled) {
+  background: #2563eb;
+  color: #fff;
+}
+.entrance-save-btn.saved {
+  border-color: #16a34a;
+  color: #16a34a;
+  cursor: default;
+}
+
+/* Mark entrance button in pano viewer header */
+.viewer-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.viewer-mark-entrance-btn {
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #22c55e;
+  border-radius: 4px;
+  background: transparent;
+  color: #22c55e;
+  cursor: pointer;
+}
+.viewer-mark-entrance-btn:hover {
+  background: #22c55e;
+  color: #000;
+}
+
 /* Entrance detection bar — green, draggable, shown on both flat and pano viewers */
 .viewer-entrance-bar {
   position: absolute;

@@ -1,11 +1,40 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { readFileSync, writeFileSync } from 'fs';
+import { resolve } from 'path';
+
+function saveEntrancesPlugin() {
+  return {
+    name: 'save-entrances',
+    configureServer(server) {
+      // POST /api/save-entrance  body: { feature: GeoJSON Feature }
+      server.middlewares.use('/api/save-entrance', (req, res) => {
+        if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; }
+        let body = '';
+        req.on('data', (chunk) => { body += chunk; });
+        req.on('end', () => {
+          try {
+            const { feature } = JSON.parse(body);
+            const p = resolve('./resources/ca.sanfrancisco.graph.polygons.geojson');
+            const fc = JSON.parse(readFileSync(p, 'utf8'));
+            fc.features.push(feature);
+            writeFileSync(p, JSON.stringify(fc));
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ ok: true }));
+          } catch (e) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: String(e) }));
+          }
+        });
+      });
+    },
+  };
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), saveEntrancesPlugin()],
   publicDir: 'resources',
   optimizeDeps: {
-    // onnxruntime-web ships native WASM — Vite must not pre-bundle it
     exclude: ['onnxruntime-web'],
   },
   server: {
