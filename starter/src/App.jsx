@@ -503,11 +503,17 @@ function App() {
         }
 
         const routeResponse = routeResult.value;
-  
-        const originImages =
-          originImagesResult.status === 'fulfilled' ? originImagesResult.value : [];
-        const destinationImages =
-          destinationImagesResult.status === 'fulfilled' ? destinationImagesResult.value : [];
+
+        const originImages = selectVantageImages(
+          originImagesResult.status === 'fulfilled' ? originImagesResult.value : [],
+          startPoint,
+          nearbyBuildings.origin,
+        );
+        const destinationImages = selectVantageImages(
+          destinationImagesResult.status === 'fulfilled' ? destinationImagesResult.value : [],
+          endPoint,
+          nearbyBuildings.destination,
+        );
 
       if (routeResponse.code !== 'Ok' || !routeResponse.route) {
         setRouteState({
@@ -965,7 +971,6 @@ async function fetchNearbyMapillaryImages(point, token) {
     access_token: token,
     fields: 'id,captured_at,thumb_1024_url,geometry,computed_geometry,compass_angle,computed_compass_angle,camera_type,is_pano',
     bbox: buildBboxMeters(point, 50).join(','),
-    limit: '50',
   }).toString();
 
   const response = await fetch(url.toString());
@@ -976,9 +981,7 @@ async function fetchNearbyMapillaryImages(point, token) {
   const data = await response.json();
   return (data.data || [])
     .map((item) => normalizeImage(item, point))
-    .filter((item) => item.imageUrl)
-    .sort((left, right) => (right.capturedAt || 0) - (left.capturedAt || 0))
-    .slice(0, 4);
+    .filter((item) => item.imageUrl && item.isPano);
 }
 
 async function forwardLookup(query, token, proximity, signal) {
@@ -1425,6 +1428,169 @@ function distanceBetween(left, right) {
     Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(lat1) * Math.cos(lat2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return earthRadiusMeters * c;
+}
+
+// ---- Vantage-point image selection ----
+
+function geoBearingTo(from, to) {
+  const φ1 = (from.lat * Math.PI) / 180;
+  const φ2 = (to.lat * Math.PI) / 180;
+  const Δλ = ((to.lng - from.lng) * Math.PI) / 180;
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+function inAngularSpan(bearing, b1, b2) {
+  const norm = (b) => ((b % 360) + 360) % 360;
+  bearing = norm(bearing);
+  b1 = norm(b1);
+  b2 = norm(b2);
+  const diff = norm(b2 - b1);
+  // Use the shorter arc; if diff > 180 the shorter arc goes b2 → b1
+  if (diff > 180) {
+    return norm(bearing - b2) <= 360 - diff;
+  }
+  return norm(bearing - b1) <= diff;
+}
+
+function segmentsIntersect(a1, a2, b1, b2) {
+  function cross(o, a, b) {
+    return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  }
+  const d1 = cross(b1, b2, a1);
+  const d2 = cross(b1, b2, a2);
+  const d3 = cross(a1, a2, b1);
+  const d4 = cross(a1, a2, b2);
+  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+         ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+}
+
+function segmentClearsBuildings(p1, p2, buildingFeatures, excludeFeature) {
+  for (const f of buildingFeatures) {
+    if (f === excludeFeature) continue;
+    const geom = f.geometry;
+    if (!geom) continue;
+    const rings = geom.type === 'MultiPolygon' ? geom.coordinates[0] : geom.coordinates;
+    const ring = rings[0];
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      if (segmentsIntersect(p1, p2, ring[j], ring[i])) return false;
+    }
+  }
+  return true;
+}
+
+function pointInRing(point, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1];
+    const xj = ring[j][0], yj = ring[j][1];
+    if ((yi > point.lat) !== (yj > point.lat) &&
+        point.lng < ((xj - xi) * (point.lat - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function findTargetBuilding(point, buildingFeatures) {
+  for (const f of buildingFeatures) {
+    if (!f.geometry) continue;
+    const geom = f.geometry;
+    const rings = geom.type === 'MultiPolygon' ? geom.coordinates[0] : geom.coordinates;
+    if (pointInRing(point, rings[0])) return f;
+  }
+  return null;
+}
+
+function spatialDedup(images, minDistMeters = 15) {
+  const kept = [];
+  for (const img of images) {
+    if (!img.geometry) continue;
+    const [lng, lat] = img.geometry.coordinates;
+    const tooClose = kept.some((s) => {
+      const [slng, slat] = s.geometry.coordinates;
+      return distanceBetween({ lng, lat }, { lng: slng, lat: slat }) < minDistMeters;
+    });
+    if (!tooClose) kept.push(img);
+  }
+  return kept;
+}
+
+function selectVantageImages(images, point, buildingFeatures) {
+  const target = findTargetBuilding(point, buildingFeatures);
+
+  if (!target) {
+    return spatialDedup(
+      [...images].sort((a, b) => (a.distanceMeters ?? 9999) - (b.distanceMeters ?? 9999)),
+    );
+  }
+
+  const geom = target.geometry;
+  const rings = geom.type === 'MultiPolygon' ? geom.coordinates[0] : geom.coordinates;
+  const ring = rings[0];
+
+  // Assign each image to the best-scoring face whose span it falls in
+  const faceGroups = new Map(); // faceIndex -> [{img, score}]
+
+  for (const img of images) {
+    if (!img.geometry) continue;
+    const [cLng, cLat] = img.geometry.coordinates;
+    const cBearing = geoBearingTo(point, { lng: cLng, lat: cLat });
+    let bestFace = -1;
+    let bestScore = -1;
+
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const v1 = ring[j];
+      const v2 = ring[i];
+      const b1 = geoBearingTo(point, { lng: v1[0], lat: v1[1] });
+      const b2 = geoBearingTo(point, { lng: v2[0], lat: v2[1] });
+
+      if (!inAngularSpan(cBearing, b1, b2)) continue;
+
+      // Outward-side check: camera must be on the exterior of this face.
+      // Rotate wall direction 90° to get a candidate normal; pick the sign
+      // that points away from the polygon interior (i.e. toward the camera).
+      const wLng = v2[0] - v1[0];
+      const wLat = v2[1] - v1[1];
+      const wLen = Math.hypot(wLng, wLat);
+      if (wLen < 1e-10) continue;
+      const nLng = -wLat / wLen;
+      const nLat = wLng / wLen;
+      if (nLng * (cLng - v1[0]) + nLat * (cLat - v1[1]) <= 0) continue;
+
+      const midLng = (v1[0] + v2[0]) / 2;
+      const midLat = (v1[1] + v2[1]) / 2;
+
+      if (!segmentClearsBuildings([cLng, cLat], [midLng, midLat], buildingFeatures, target)) continue;
+
+      const d = distanceBetween({ lng: cLng, lat: cLat }, { lng: midLng, lat: midLat });
+      const faceLen = distanceBetween({ lng: v1[0], lat: v1[1] }, { lng: v2[0], lat: v2[1] });
+      const ideal = Math.max(8, faceLen * 1.2);
+      const score = Math.exp(-0.5 * Math.pow((d - ideal) / 6, 2));
+
+      if (score > bestScore) { bestScore = score; bestFace = i; }
+    }
+
+    if (bestFace >= 0) {
+      if (!faceGroups.has(bestFace)) faceGroups.set(bestFace, []);
+      faceGroups.get(bestFace).push({ img, score: bestScore });
+    }
+  }
+
+  if (faceGroups.size === 0) {
+    return spatialDedup(
+      [...images].sort((a, b) => (a.distanceMeters ?? 9999) - (b.distanceMeters ?? 9999)),
+    );
+  }
+
+  // Per face: sort by score desc, then spatial dedup to thin same-run clusters
+  const result = [];
+  for (const candidates of faceGroups.values()) {
+    candidates.sort((a, b) => b.score - a.score);
+    result.push(...spatialDedup(candidates.map((c) => c.img)));
+  }
+  return result;
 }
 
 function formatDuration(seconds) {
