@@ -50,6 +50,7 @@ function App() {
   const [imagery, setImagery] = useState({ origin: [], destination: [] });
   const [imageryError, setImageryError] = useState('');
   const [selectedImageId, setSelectedImageId] = useState(null);
+  const [nearbyBuildings, setNearbyBuildings] = useState({ origin: [], destination: [] });
 
   function handleImageClick(image) {
     setSelectedImageId((prev) => (prev === image.id ? null : image.id));
@@ -87,6 +88,59 @@ function App() {
     map.on('load', () => {
       mapLoadedRef.current = true;
 
+      // ---- Buildings (rendered below routes and imagery) ----
+      map.addSource('buildings', {
+        type: 'geojson',
+        data: '/ca.sanfrancisco.graph.polygons.geojson',
+        buffer: 0,
+        tolerance: 0.3,
+      });
+
+      map.addLayer({
+        id: 'buildings-fill',
+        type: 'fill',
+        source: 'buildings',
+        filter: ['has', 'building'],
+        paint: { 'fill-color': '#94a3b8', 'fill-opacity': 0.25 },
+      });
+
+      map.addLayer({
+        id: 'buildings-outline',
+        type: 'line',
+        source: 'buildings',
+        filter: ['has', 'building'],
+        paint: { 'line-color': '#64748b', 'line-width': 0.5, 'line-opacity': 0.5 },
+      });
+
+      map.addSource('origin-buildings', { type: 'geojson', data: EMPTY_GEOJSON });
+      map.addLayer({
+        id: 'origin-buildings-fill',
+        type: 'fill',
+        source: 'origin-buildings',
+        paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.45 },
+      });
+      map.addLayer({
+        id: 'origin-buildings-outline',
+        type: 'line',
+        source: 'origin-buildings',
+        paint: { 'line-color': '#16a34a', 'line-width': 1.5 },
+      });
+
+      map.addSource('destination-buildings', { type: 'geojson', data: EMPTY_GEOJSON });
+      map.addLayer({
+        id: 'destination-buildings-fill',
+        type: 'fill',
+        source: 'destination-buildings',
+        paint: { 'fill-color': '#dc2626', 'fill-opacity': 0.45 },
+      });
+      map.addLayer({
+        id: 'destination-buildings-outline',
+        type: 'line',
+        source: 'destination-buildings',
+        paint: { 'line-color': '#dc2626', 'line-width': 1.5 },
+      });
+
+      // ---- Route and imagery layers ----
       map.addSource('route', {
         type: 'geojson',
         data: EMPTY_GEOJSON,
@@ -267,6 +321,32 @@ function App() {
     map.getSource('origin-images')?.setData(toImageGeoJson(imagery.origin, selectedImageId));
     map.getSource('destination-images')?.setData(toImageGeoJson(imagery.destination, selectedImageId));
   }, [imagery, selectedImageId]);
+
+  useEffect(() => {
+    if (!startPoint || !mapLoadedRef.current) return;
+    const map = mapRef.current;
+    if (!map) return;
+    const handler = () => {
+      const results = queryNearbyBuildings(map, startPoint);
+      setNearbyBuildings((prev) => ({ ...prev, origin: results }));
+      map.getSource('origin-buildings')?.setData({ type: 'FeatureCollection', features: results });
+    };
+    map.once('idle', handler);
+    return () => map.off('idle', handler);
+  }, [startPoint]);
+
+  useEffect(() => {
+    if (!endPoint || !mapLoadedRef.current) return;
+    const map = mapRef.current;
+    if (!map) return;
+    const handler = () => {
+      const results = queryNearbyBuildings(map, endPoint);
+      setNearbyBuildings((prev) => ({ ...prev, destination: results }));
+      map.getSource('destination-buildings')?.setData({ type: 'FeatureCollection', features: results });
+    };
+    map.once('idle', handler);
+    return () => map.off('idle', handler);
+  }, [endPoint]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -747,7 +827,7 @@ async function fetchNearbyMapillaryImages(point, token) {
       access_token: token,
       fields: 'id,captured_at,thumb_1024_url,geometry,computed_geometry,compass_angle,computed_compass_angle,camera_type,is_pano',
       bbox: buildBbox(point, delta).join(','),
-      limit: '8',
+      limit: '50',
     }).toString();
 
     const response = await fetch(url.toString());
@@ -759,7 +839,7 @@ async function fetchNearbyMapillaryImages(point, token) {
     const items = (data.data || [])
       .map((item) => normalizeImage(item, point))
       .filter((item) => item.imageUrl)
-      .sort((left, right) => (left.distanceMeters || Infinity) - (right.distanceMeters || Infinity))
+      .sort((left, right) => (right.capturedAt || 0) - (left.capturedAt || 0))
       .slice(0, 4);
 
     if (items.length) {
@@ -903,6 +983,28 @@ function normalizeImage(item, point) {
     distanceMeters,
     geometry: coordinates ? { type: 'Point', coordinates } : null,
   };
+}
+
+function queryNearbyBuildings(map, point, radiusMeters = 150) {
+  const center = map.project([point.lng, point.lat]);
+  // Convert meter radius to pixels at the current zoom level
+  const metersPerPx =
+    (40075016.68 / (256 * Math.pow(2, map.getZoom()))) *
+    Math.cos((point.lat * Math.PI) / 180);
+  const r = radiusMeters / metersPerPx;
+
+  const features = map.queryRenderedFeatures(
+    [[center.x - r, center.y - r], [center.x + r, center.y + r]],
+    { layers: ['buildings-fill'] },
+  );
+
+  const seen = new Set();
+  return features.filter((f) => {
+    const id = f.properties?._id;
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
 }
 
 function buildBbox(point, delta) {
