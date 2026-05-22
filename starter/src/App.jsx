@@ -630,7 +630,7 @@ function App() {
     ]) {
       for (const image of images) {
         const detection = entranceOverlays[String(image.id)];
-        if (!detection) continue;
+        if (detection == null || detection.barFraction == null) continue;
         const bearing = ((image.compassAngle + (detection.barFraction - 0.5) * 360) % 360 + 360) % 360;
         proposals.push({
           imageId:    String(image.id),
@@ -898,7 +898,7 @@ function App() {
                       <em className="entrance-no-hit">No building intersection</em>
                     )}
                     <span className="entrance-meta">
-                      conf {p.confidence.toFixed(2)}{p.adjusted ? ' · adjusted' : ''}
+                      {p.confidence != null ? `conf ${p.confidence.toFixed(2)}` : 'manual'}{p.adjusted ? ' · adjusted' : ''}
                     </span>
                   </div>
                   {p.coordinate && (
@@ -1776,7 +1776,19 @@ function findTargetBuilding(point, buildingFeatures) {
     const rings = geom.type === 'MultiPolygon' ? geom.coordinates[0] : geom.coordinates;
     if (pointInRing(point, rings[0])) return f;
   }
-  return null;
+  // Waypoint is on the street — fall back to the building whose centroid is closest
+  let nearest = null;
+  let minDist = Infinity;
+  for (const f of buildingFeatures) {
+    if (!f.geometry) continue;
+    const rings = f.geometry.type === 'MultiPolygon' ? f.geometry.coordinates[0] : f.geometry.coordinates;
+    const ring = rings[0];
+    const centLng = ring.reduce((s, c) => s + c[0], 0) / ring.length;
+    const centLat = ring.reduce((s, c) => s + c[1], 0) / ring.length;
+    const d = distanceBetween(point, { lng: centLng, lat: centLat });
+    if (d < minDist) { minDist = d; nearest = f; }
+  }
+  return nearest;
 }
 
 function spatialDedup(images, minDistMeters = 15) {
@@ -1901,6 +1913,8 @@ function formatDate(value) {
   }
 }
 
+// Shoots a ray from the camera in the given bearing and returns the [lng, lat]
+// of the first wall intersection on the target building.
 function computeEntrancePoint(image, bearing, buildingFeature) {
   if (!image.geometry || !buildingFeature?.geometry) return null;
 
