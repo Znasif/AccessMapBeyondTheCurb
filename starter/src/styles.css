@@ -457,6 +457,132 @@ code {
   background: #ef4444;
 }
 
+/* ---- Floating image viewer panel ---- */
+
+.viewer-panel {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  z-index: 50;
+  width: 380px;
+  background: #000;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+}
+
+.viewer-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px 8px 14px;
+  background: #1e293b;
+  flex-shrink: 0;
+}
+
+.viewer-panel-label {
+  font-size: 11px;
+  color: #94a3b8;
+  letter-spacing: 0.03em;
+}
+
+.viewer-close {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.viewer-close:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.viewer-pano-container {
+  position: relative;
+  width: 100%;
+  height: 260px;
+}
+
+/* Fixed vertical crosshair at center of pano viewer */
+.viewer-crosshair {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.viewer-crosshair::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.65);
+  transform: translateX(-50%);
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
+}
+
+.viewer-crosshair::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+}
+
+.viewer-flat-container {
+  position: relative;
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.viewer-flat-container img {
+  display: block;
+  width: 100%;
+  max-height: 260px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* Draggable heading bar on flat images */
+.viewer-heading-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(239, 68, 68, 0.9);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.viewer-heading-bar::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  background: #ef4444;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+}
+
 @media (max-width: 980px) {
   body {
     overflow: auto;

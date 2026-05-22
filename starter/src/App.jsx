@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import '@photo-sphere-viewer/core/index.css';
 
 const GH_HQ = {
   lng: -122.391,
@@ -52,6 +53,7 @@ function App() {
   const [imageryError, setImageryError] = useState('');
   const [selectedImageId, setSelectedImageId] = useState(null);
   const [nearbyBuildings, setNearbyBuildings] = useState({ origin: [], destination: [] });
+  const [expandedImage, setExpandedImage] = useState(null);
 
   const proximity = useMemo(
     () => [startPoint, endPoint].find(Boolean) || { lng: GH_HQ.lng, lat: GH_HQ.lat },
@@ -290,6 +292,20 @@ function App() {
           'circle-color': ['case', ['boolean', ['get', 'selected'], false], '#f59e0b', '#dc2626'],
           'circle-stroke-width': 1.5,
           'circle-stroke-color': '#ffffff',
+        },
+      });
+
+      // Heading line — rendered on top of everything else
+      map.addSource('heading-line', { type: 'geojson', data: EMPTY_GEOJSON });
+      map.addLayer({
+        id: 'heading-line-layer',
+        type: 'line',
+        source: 'heading-line',
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': 2,
+          'line-opacity': 0.95,
+          'line-dasharray': [3, 2],
         },
       });
     });
@@ -704,6 +720,7 @@ function App() {
             selectedImageId={selectedImageId}
             onSelectImage={setSelectedImageId}
             imageCardRefs={imageCardRefs}
+            onExpandImage={setExpandedImage}
           />
           <ImageBucket
             title="Destination frontage"
@@ -711,6 +728,7 @@ function App() {
             selectedImageId={selectedImageId}
             onSelectImage={setSelectedImageId}
             imageCardRefs={imageCardRefs}
+            onExpandImage={setExpandedImage}
           />
 
           {imageryError ? <p className="error-text">{imageryError}</p> : null}
@@ -731,6 +749,15 @@ function App() {
             </div>
           </div>
         )}
+
+        {expandedImage ? (
+          <ImageViewer
+            image={expandedImage}
+            mapRef={mapRef}
+            mapLoadedRef={mapLoadedRef}
+            onClose={() => setExpandedImage(null)}
+          />
+        ) : null}
       </main>
     </div>
   );
@@ -865,7 +892,7 @@ function PointMeta({ point }) {
   );
 }
 
-function ImageBucket({ title, images, selectedImageId, onSelectImage, imageCardRefs }) {
+function ImageBucket({ title, images, selectedImageId, onSelectImage, imageCardRefs, onExpandImage }) {
   return (
     <div className="image-bucket">
       <h3>{title}</h3>
@@ -886,6 +913,7 @@ function ImageBucket({ title, images, selectedImageId, onSelectImage, imageCardR
                   }
                 }}
                 className={`image-card ${isSelected ? 'selected' : ''}`}
+                onClick={() => onExpandImage?.(image)}
                 onMouseEnter={() => onSelectImage?.(imageId)}
                 onMouseLeave={() => onSelectImage?.(null)}
               >
@@ -1114,6 +1142,136 @@ function routeEndpointToPoint(route, endpoint) {
   if (!coordinates?.length) return null;
   const coordinate = endpoint === 'first' ? coordinates[0] : coordinates[coordinates.length - 1];
   return { lng: coordinate[0], lat: coordinate[1] };
+}
+
+function updateHeadingLine(map, loaded, image, headingAngle) {
+  if (!map || !loaded) return;
+  const source = map.getSource('heading-line');
+  if (!source) return;
+
+  if (!image?.geometry) {
+    source.setData(EMPTY_GEOJSON);
+    return;
+  }
+
+  const [lng, lat] = image.geometry.coordinates;
+  const radiusMeters = 20;
+  const latRad = (lat * Math.PI) / 180;
+  const a = (headingAngle * Math.PI) / 180;
+
+  source.setData({
+    type: 'FeatureCollection',
+    features: [{
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [lng, lat],
+          [
+            lng + (Math.sin(a) * radiusMeters) / (111320 * Math.cos(latRad)),
+            lat + (Math.cos(a) * radiusMeters) / 111320,
+          ],
+        ],
+      },
+    }],
+  });
+}
+
+function ImageViewer({ image, mapRef, mapLoadedRef, onClose }) {
+  return (
+    <div className="viewer-panel">
+      {image.isPano
+        ? <PanoViewer image={image} mapRef={mapRef} mapLoadedRef={mapLoadedRef} onClose={onClose} />
+        : <FlatViewer image={image} mapRef={mapRef} mapLoadedRef={mapLoadedRef} onClose={onClose} />
+      }
+    </div>
+  );
+}
+
+function PanoViewer({ image, mapRef, mapLoadedRef, onClose }) {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    let viewer;
+
+    updateHeadingLine(mapRef.current, mapLoadedRef.current, image, image.compassAngle);
+
+    import('@photo-sphere-viewer/core').then(({ Viewer }) => {
+      if (!containerRef.current) return;
+      viewer = new Viewer({
+        container: containerRef.current,
+        panorama: image.imageUrl,
+        defaultYaw: 0,
+        navbar: false,
+        loadingImg: null,
+        touchmoveTwoFingers: false,
+      });
+
+      viewer.addEventListener('position-updated', ({ position }) => {
+        const yawDeg = (position.yaw * 180) / Math.PI;
+        const heading = (image.compassAngle + yawDeg + 360) % 360;
+        updateHeadingLine(mapRef.current, mapLoadedRef.current, image, heading);
+      });
+    });
+
+    return () => {
+      updateHeadingLine(mapRef.current, mapLoadedRef.current, null, 0);
+      viewer?.destroy();
+    };
+  }, [image.id]);
+
+  return (
+    <>
+      <div className="viewer-panel-header">
+        <span className="viewer-panel-label">360° · pan to aim</span>
+        <button className="viewer-close" onClick={onClose}>×</button>
+      </div>
+      <div ref={containerRef} className="viewer-pano-container" />
+      <div className="viewer-crosshair" />
+    </>
+  );
+}
+
+function FlatViewer({ image, mapRef, mapLoadedRef, onClose }) {
+  const [barFraction, setBarFraction] = useState(0.5);
+  const isDragging = useRef(false);
+  const containerRef = useRef(null);
+  const halfFov = (image.cameraType === 'fisheye' ? 150 : 65) / 2;
+
+  useEffect(() => {
+    updateHeadingLine(mapRef.current, mapLoadedRef.current, image, image.compassAngle);
+    return () => updateHeadingLine(mapRef.current, mapLoadedRef.current, null, 0);
+  }, [image.id]);
+
+  function handlePointerMove(e) {
+    if (!isDragging.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    setBarFraction(fraction);
+    const heading = (image.compassAngle - halfFov + fraction * halfFov * 2 + 360) % 360;
+    updateHeadingLine(mapRef.current, mapLoadedRef.current, image, heading);
+  }
+
+  return (
+    <>
+      <div className="viewer-panel-header">
+        <span className="viewer-panel-label">{halfFov * 2}° FOV · drag bar to aim</span>
+        <button className="viewer-close" onClick={onClose}>×</button>
+      </div>
+      <div
+        ref={containerRef}
+        className="viewer-flat-container"
+        onPointerDown={(e) => { isDragging.current = true; e.currentTarget.setPointerCapture(e.pointerId); }}
+        onPointerUp={() => { isDragging.current = false; }}
+        onPointerMove={handlePointerMove}
+      >
+        <img src={image.imageUrl} alt="" draggable={false} />
+        <div className="viewer-heading-bar" style={{ left: `${barFraction * 100}%` }} />
+      </div>
+    </>
+  );
 }
 
 function buildBboxMeters(point, meters) {
