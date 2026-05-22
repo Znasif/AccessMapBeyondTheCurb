@@ -312,14 +312,14 @@ function App() {
         },
       });
 
-      // Entrance line (green solid) — detected entrance direction, fixed while panning
+      // Entrance lines — red for origin images, green for destination images
       map.addSource('entrance-line', { type: 'geojson', data: EMPTY_GEOJSON });
       map.addLayer({
         id: 'entrance-line-layer',
         type: 'line',
         source: 'entrance-line',
         paint: {
-          'line-color': '#22c55e',
+          'line-color': ['match', ['get', 'side'], 'origin', '#dc2626', '#16a34a'],
           'line-width': 2.5,
           'line-opacity': 0.95,
         },
@@ -394,6 +394,36 @@ function App() {
     map.getSource('origin-images')?.setData(toImageGeoJson(imagery.origin, selectedImageId));
     map.getSource('destination-images')?.setData(toImageGeoJson(imagery.destination, selectedImageId));
   }, [imagery, selectedImageId]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapLoadedRef.current || !map) return;
+    const features = [];
+    for (const [side, images] of [['origin', imagery.origin], ['destination', imagery.destination]]) {
+      for (const image of images) {
+        if (!image.geometry) continue;
+        const detection = entranceOverlays[String(image.id)];
+        if (!detection) continue;
+        const [lng, lat] = image.geometry.coordinates;
+        const bearing = ((image.compassAngle + (detection.barFraction - 0.5) * 360) % 360 + 360) % 360;
+        const latRad = (lat * Math.PI) / 180;
+        const a = (bearing * Math.PI) / 180;
+        const r = 20;
+        features.push({
+          type: 'Feature',
+          properties: { imageId: String(image.id), side },
+          geometry: {
+            type: 'LineString',
+            coordinates: [
+              [lng, lat],
+              [lng + (Math.sin(a) * r) / (111320 * Math.cos(latRad)), lat + (Math.cos(a) * r) / 111320],
+            ],
+          },
+        });
+      }
+    }
+    map.getSource('entrance-line')?.setData({ type: 'FeatureCollection', features });
+  }, [entranceOverlays, imagery]);
 
   useEffect(() => {
     if (!startPoint || !mapLoadedRef.current) return;
@@ -1289,8 +1319,6 @@ function PanoViewer({ image, entranceFraction, mapRef, mapLoadedRef, onClose }) 
     entranceFractionRef.current = entranceFraction;
     if (entranceFraction == null || !psvRef.current) return;
     const entranceYaw = (entranceFraction - 0.5) * 2 * Math.PI;
-    const entranceBearing = ((image.compassAngle + (entranceFraction - 0.5) * 360) % 360 + 360) % 360;
-    updateMapEntranceLine(mapRef.current, mapLoadedRef.current, image, entranceBearing);
     psvRef.current.animate({ yaw: entranceYaw, pitch: 0, speed: '3rpm' });
   }, [entranceFraction]);
 
@@ -1323,8 +1351,6 @@ function PanoViewer({ image, entranceFraction, mapRef, mapLoadedRef, onClose }) 
         const fraction = entranceFractionRef.current;
         if (fraction == null) return;
         const entranceYaw = (fraction - 0.5) * 2 * Math.PI;
-        const entranceBearing = ((image.compassAngle + (fraction - 0.5) * 360) % 360 + 360) % 360;
-        updateMapEntranceLine(mapRef.current, mapLoadedRef.current, image, entranceBearing);
         viewer.animate({ yaw: entranceYaw, pitch: 0, speed: '3rpm' });
       });
     });
@@ -1332,7 +1358,6 @@ function PanoViewer({ image, entranceFraction, mapRef, mapLoadedRef, onClose }) 
     return () => {
       psvRef.current = null;
       updateHeadingLine(mapRef.current, mapLoadedRef.current, null, 0);
-      updateMapEntranceLine(mapRef.current, mapLoadedRef.current, null, 0);
       viewer?.destroy();
     };
   }, [image.id]);
