@@ -40,5 +40,16 @@ export default defineConfig({
   server: {
     port: 5173,
     open: true,
+    proxy: {
+      '/accessmap-api': {
+        target: 'https://stage.accessmap.app',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/accessmap-api/, '/api/v1/routing'),
+        headers: {
+          Referer: 'https://stage.accessmap.app/',
+          Origin: 'https://stage.accessmap.app',
+        },
+      },
+    },
   },
 });

@@ -3,6 +3,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import '@photo-sphere-viewer/core/index.css';
 import { loadEntranceModel, detectEntrance } from './entranceDetector';
+import TACTILE_STYLE from './tactileStyle';
 
 const GH_HQ = {
   lng: -122.391,
@@ -26,7 +27,7 @@ function App() {
   const mapboxToken = (import.meta.env.VITE_MAPBOX_TOKEN || '').trim();
   const mapillaryToken = (import.meta.env.VITE_MAPILLARY_TOKEN || '').trim();
   const accessMapBase =
-    (import.meta.env.VITE_ACCESSMAP_BASE_URL || 'https://stage.accessmap.app/api/v1/routing').trim();
+    (import.meta.env.VITE_ACCESSMAP_BASE_URL || '/accessmap-api').trim();
 
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
@@ -57,7 +58,16 @@ function App() {
   const [expandedImage, setExpandedImage] = useState(null);
   const [entranceOverlays, setEntranceOverlays] = useState({});
   const [savedEntrances, setSavedEntrances] = useState({});  // imageId → true
+  const [showTactile, setShowTactile] = useState(true);
   const modelRef = useRef(null);
+
+  const addCustomLayersRef = useRef(null);
+  const routeStateRef = useRef(routeState);
+  const imageryRef = useRef(imagery);
+  const selectedImageIdRef = useRef(selectedImageId);
+  const originBuildingsDataRef = useRef(EMPTY_GEOJSON);
+  const destinationBuildingsDataRef = useRef(EMPTY_GEOJSON);
+  const entranceLineDataRef = useRef(EMPTY_GEOJSON);
 
   const proximity = useMemo(
     () => [startPoint, endPoint].find(Boolean) || { lng: GH_HQ.lng, lat: GH_HQ.lat },
@@ -71,6 +81,10 @@ function App() {
     }
   }, [clickMode]);
 
+  useEffect(() => { routeStateRef.current = routeState; }, [routeState]);
+  useEffect(() => { imageryRef.current = imagery; }, [imagery]);
+  useEffect(() => { selectedImageIdRef.current = selectedImageId; }, [selectedImageId]);
+
   useEffect(() => {
     if (!mapboxToken || mapRef.current) {
       return;
@@ -80,7 +94,7 @@ function App() {
 
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
+      style: TACTILE_STYLE,
       center: [GH_HQ.lng, GH_HQ.lat],
       zoom: GH_HQ.zoom,
       attributionControl: true,
@@ -88,55 +102,53 @@ function App() {
 
     map.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
-    map.on('load', () => {
-      mapLoadedRef.current = true;
-
+    addCustomLayersRef.current = (m) => {
       // ---- Buildings (rendered below routes and imagery) ----
-      map.addSource('buildings', {
+      m.addSource('buildings', {
         type: 'geojson',
         data: '/ca.sanfrancisco.graph.polygons.geojson',
         buffer: 0,
         tolerance: 0.3,
       });
 
-      map.addLayer({
+      m.addLayer({
         id: 'buildings-fill',
         type: 'fill',
         source: 'buildings',
         filter: ['has', 'building'],
-        paint: { 'fill-color': '#94a3b8', 'fill-opacity': 0.25 },
+        paint: { 'fill-color': '#000000', 'fill-opacity': 0.2 },
       });
 
-      map.addLayer({
+      m.addLayer({
         id: 'buildings-outline',
         type: 'line',
         source: 'buildings',
         filter: ['has', 'building'],
-        paint: { 'line-color': '#64748b', 'line-width': 0.5, 'line-opacity': 0.5 },
+        paint: { 'line-color': '#000000', 'line-width': 1, 'line-opacity': 0.8 },
       });
 
-      map.addSource('origin-buildings', { type: 'geojson', data: EMPTY_GEOJSON });
-      map.addLayer({
+      m.addSource('origin-buildings', { type: 'geojson', data: EMPTY_GEOJSON });
+      m.addLayer({
         id: 'origin-buildings-fill',
         type: 'fill',
         source: 'origin-buildings',
         paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.45 },
       });
-      map.addLayer({
+      m.addLayer({
         id: 'origin-buildings-outline',
         type: 'line',
         source: 'origin-buildings',
         paint: { 'line-color': '#16a34a', 'line-width': 1.5 },
       });
 
-      map.addSource('destination-buildings', { type: 'geojson', data: EMPTY_GEOJSON });
-      map.addLayer({
+      m.addSource('destination-buildings', { type: 'geojson', data: EMPTY_GEOJSON });
+      m.addLayer({
         id: 'destination-buildings-fill',
         type: 'fill',
         source: 'destination-buildings',
         paint: { 'fill-color': '#dc2626', 'fill-opacity': 0.45 },
       });
-      map.addLayer({
+      m.addLayer({
         id: 'destination-buildings-outline',
         type: 'line',
         source: 'destination-buildings',
@@ -144,12 +156,12 @@ function App() {
       });
 
       // ---- Route and imagery layers ----
-      map.addSource('route', {
+      m.addSource('route', {
         type: 'geojson',
         data: EMPTY_GEOJSON,
       });
 
-      map.addLayer({
+      m.addLayer({
         id: 'route-line',
         type: 'line',
         source: 'route',
@@ -165,7 +177,7 @@ function App() {
         },
       });
 
-      map.addLayer({
+      m.addLayer({
         id: 'route-connector-line',
         type: 'line',
         source: 'route',
@@ -182,9 +194,9 @@ function App() {
         },
       });
 
-      map.addSource('origin-images', { type: 'geojson', data: EMPTY_GEOJSON });
+      m.addSource('origin-images', { type: 'geojson', data: EMPTY_GEOJSON });
 
-      map.addLayer({
+      m.addLayer({
         id: 'origin-sector-fill',
         type: 'fill',
         source: 'origin-images',
@@ -195,7 +207,7 @@ function App() {
         },
       });
 
-      map.addLayer({
+      m.addLayer({
         id: 'origin-sector-outline',
         type: 'line',
         source: 'origin-images',
@@ -207,7 +219,7 @@ function App() {
         },
       });
 
-      map.addLayer({
+      m.addLayer({
         id: 'origin-images-layer',
         type: 'circle',
         source: 'origin-images',
@@ -233,23 +245,23 @@ function App() {
       };
 
       ['origin-images-layer', 'destination-images-layer'].forEach((layerId) => {
-        map.on('mouseenter', layerId, (event) => {
-          map.getCanvas().style.cursor = 'pointer';
+        m.on('mouseenter', layerId, (event) => {
+          m.getCanvas().style.cursor = 'pointer';
           selectImageFromMapPoint(event);
         });
 
-        map.on('mouseleave', layerId, () => {
-          map.getCanvas().style.cursor = 'crosshair';
+        m.on('mouseleave', layerId, () => {
+          m.getCanvas().style.cursor = 'crosshair';
           setSelectedImageId(null);
         });
       });
 
-      map.addSource('mapillary-lookup-points', {
+      m.addSource('mapillary-lookup-points', {
         type: 'geojson',
         data: EMPTY_GEOJSON,
       });
 
-      map.addLayer({
+      m.addLayer({
         id: 'mapillary-lookup-points-layer',
         type: 'circle',
         source: 'mapillary-lookup-points',
@@ -261,9 +273,9 @@ function App() {
         },
       });
 
-      map.addSource('destination-images', { type: 'geojson', data: EMPTY_GEOJSON });
+      m.addSource('destination-images', { type: 'geojson', data: EMPTY_GEOJSON });
 
-      map.addLayer({
+      m.addLayer({
         id: 'destination-sector-fill',
         type: 'fill',
         source: 'destination-images',
@@ -274,7 +286,7 @@ function App() {
         },
       });
 
-      map.addLayer({
+      m.addLayer({
         id: 'destination-sector-outline',
         type: 'line',
         source: 'destination-images',
@@ -286,7 +298,7 @@ function App() {
         },
       });
 
-      map.addLayer({
+      m.addLayer({
         id: 'destination-images-layer',
         type: 'circle',
         source: 'destination-images',
@@ -300,8 +312,8 @@ function App() {
       });
 
       // Heading line (white dashed) — where you are currently looking
-      map.addSource('heading-line', { type: 'geojson', data: EMPTY_GEOJSON });
-      map.addLayer({
+      m.addSource('heading-line', { type: 'geojson', data: EMPTY_GEOJSON });
+      m.addLayer({
         id: 'heading-line-layer',
         type: 'line',
         source: 'heading-line',
@@ -314,8 +326,8 @@ function App() {
       });
 
       // Entrance lines — red for origin images, green for destination images
-      map.addSource('entrance-line', { type: 'geojson', data: EMPTY_GEOJSON });
-      map.addLayer({
+      m.addSource('entrance-line', { type: 'geojson', data: EMPTY_GEOJSON });
+      m.addLayer({
         id: 'entrance-line-layer',
         type: 'line',
         source: 'entrance-line',
@@ -325,6 +337,11 @@ function App() {
           'line-opacity': 0.95,
         },
       });
+    };
+
+    map.on('load', () => {
+      mapLoadedRef.current = true;
+      addCustomLayersRef.current(map);
     });
 
     map.on('click', (event) => {
@@ -344,6 +361,37 @@ function App() {
       mapRef.current = null;
     };
   }, [mapboxToken]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current) return;
+
+    const newStyle = showTactile ? TACTILE_STYLE : 'mapbox://styles/mapbox/streets-v12';
+    mapLoadedRef.current = false;
+    map.setStyle(newStyle);
+
+    map.once('style.load', () => {
+      addCustomLayersRef.current(map);
+      if (!showTactile) {
+        map.setLayoutProperty('buildings-fill', 'visibility', 'none');
+        map.setLayoutProperty('buildings-outline', 'visibility', 'none');
+      }
+      mapLoadedRef.current = true;
+
+      const rs = routeStateRef.current;
+      map.getSource('route')?.setData(toRouteGeoJson(rs.route));
+      map.getSource('mapillary-lookup-points')?.setData(
+        mapillaryToken ? toMapillaryLookupPointGeoJson(rs.route) : EMPTY_GEOJSON,
+      );
+      const im = imageryRef.current;
+      const sid = selectedImageIdRef.current;
+      map.getSource('origin-images')?.setData(toImageGeoJson(im.origin, sid));
+      map.getSource('destination-images')?.setData(toImageGeoJson(im.destination, sid));
+      map.getSource('entrance-line')?.setData(entranceLineDataRef.current);
+      map.getSource('origin-buildings')?.setData(originBuildingsDataRef.current);
+      map.getSource('destination-buildings')?.setData(destinationBuildingsDataRef.current);
+    });
+  }, [showTactile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     mapSelectionHandlerRef.current = async (point) => {
@@ -423,7 +471,9 @@ function App() {
         });
       }
     }
-    map.getSource('entrance-line')?.setData({ type: 'FeatureCollection', features });
+    const data = { type: 'FeatureCollection', features };
+    entranceLineDataRef.current = data;
+    map.getSource('entrance-line')?.setData(data);
   }, [entranceOverlays, imagery]);
 
   useEffect(() => {
@@ -434,7 +484,9 @@ function App() {
       const results = queryNearbyBuildings(map, startPoint);
       setNearbyBuildings((prev) => ({ ...prev, origin: results }));
       const target = findTargetBuilding(startPoint, results);
-      map.getSource('origin-buildings')?.setData({ type: 'FeatureCollection', features: target ? [target] : [] });
+      const data = { type: 'FeatureCollection', features: target ? [target] : [] };
+      originBuildingsDataRef.current = data;
+      map.getSource('origin-buildings')?.setData(data);
     };
     map.once('idle', handler);
     return () => map.off('idle', handler);
@@ -448,7 +500,9 @@ function App() {
       const results = queryNearbyBuildings(map, endPoint);
       setNearbyBuildings((prev) => ({ ...prev, destination: results }));
       const target = findTargetBuilding(endPoint, results);
-      map.getSource('destination-buildings')?.setData({ type: 'FeatureCollection', features: target ? [target] : [] });
+      const data = { type: 'FeatureCollection', features: target ? [target] : [] };
+      destinationBuildingsDataRef.current = data;
+      map.getSource('destination-buildings')?.setData(data);
     };
     map.once('idle', handler);
     return () => map.off('idle', handler);
@@ -815,6 +869,15 @@ function App() {
             <span>Avoid raised curbs and stairs</span>
           </label>
 
+          <label className="switch-row">
+            <input
+              type="checkbox"
+              checked={showTactile}
+              onChange={(event) => setShowTactile(event.target.checked)}
+            />
+            <span>Tactile map</span>
+          </label>
+
           <button
             type="button"
             className="primary-button"
@@ -1122,7 +1185,8 @@ function ImageBucket({ title, images, selectedImageId, onSelectImage, imageCardR
 }
 
 async function fetchAccessibleRoute({ accessMapBase, startPoint, endPoint, prefs }) {
-  const url = new URL(`${accessMapBase.replace(/\/$/, '')}/shortest_path/custom.json`);
+  const base = accessMapBase.replace(/\/$/, '');
+  const url = new URL(`${base}/shortest_path/custom.json`, window.location.origin);
   url.search = new URLSearchParams({
     lon1: startPoint.lng.toString(),
     lat1: startPoint.lat.toString(),
