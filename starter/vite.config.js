@@ -15,12 +15,17 @@ function saveEntrancesPlugin() {
         req.on('end', () => {
           try {
             const { feature } = JSON.parse(body);
-            const p = resolve('./resources/ca.sanfrancisco.graph.polygons.geojson');
-            const fc = JSON.parse(readFileSync(p, 'utf8'));
+            const p = resolve('./resources/entrances.geojson');
+            let fc;
+            try {
+              fc = JSON.parse(readFileSync(p, 'utf8'));
+            } catch {
+              fc = { type: 'FeatureCollection', features: [] };
+            }
             fc.features.push(feature);
-            writeFileSync(p, JSON.stringify(fc));
+            writeFileSync(p, JSON.stringify(fc, null, 2));
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ ok: true }));
+            res.end(JSON.stringify({ ok: true, total: fc.features.length }));
           } catch (e) {
             res.statusCode = 500;
             res.end(JSON.stringify({ error: String(e) }));

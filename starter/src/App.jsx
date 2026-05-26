@@ -68,6 +68,7 @@ function App() {
   const originBuildingsDataRef = useRef(EMPTY_GEOJSON);
   const destinationBuildingsDataRef = useRef(EMPTY_GEOJSON);
   const entranceLineDataRef = useRef(EMPTY_GEOJSON);
+  const proposedEntranceDataRef = useRef(EMPTY_GEOJSON);
 
   const proximity = useMemo(
     () => [startPoint, endPoint].find(Boolean) || { lng: GH_HQ.lng, lat: GH_HQ.lat },
@@ -337,6 +338,21 @@ function App() {
           'line-opacity': 0.95,
         },
       });
+
+      // Proposed entrance intersection points — shown after "Mark entrance"
+      m.addSource('proposed-entrances', { type: 'geojson', data: EMPTY_GEOJSON });
+      m.addLayer({
+        id: 'proposed-entrances-layer',
+        type: 'circle',
+        source: 'proposed-entrances',
+        paint: {
+          'circle-radius': 8,
+          'circle-color': ['match', ['get', 'side'], 'origin', '#dc2626', '#16a34a'],
+          'circle-stroke-width': 2.5,
+          'circle-stroke-color': '#ffffff',
+          'circle-opacity': 0.95,
+        },
+      });
     };
 
     map.on('load', () => {
@@ -388,6 +404,7 @@ function App() {
       map.getSource('origin-images')?.setData(toImageGeoJson(im.origin, sid));
       map.getSource('destination-images')?.setData(toImageGeoJson(im.destination, sid));
       map.getSource('entrance-line')?.setData(entranceLineDataRef.current);
+      map.getSource('proposed-entrances')?.setData(proposedEntranceDataRef.current);
       map.getSource('origin-buildings')?.setData(originBuildingsDataRef.current);
       map.getSource('destination-buildings')?.setData(destinationBuildingsDataRef.current);
     });
@@ -701,6 +718,21 @@ function App() {
     return proposals;
   }, [entranceOverlays, imagery, nearbyBuildings, startPoint, endPoint]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapLoadedRef.current || !map) return;
+    const features = proposedEntrances
+      .filter((p) => p.coordinate)
+      .map((p) => ({
+        type: 'Feature',
+        properties: { imageId: p.imageId, side: p.side },
+        geometry: { type: 'Point', coordinates: p.coordinate },
+      }));
+    const data = { type: 'FeatureCollection', features };
+    proposedEntranceDataRef.current = data;
+    map.getSource('proposed-entrances')?.setData(data);
+  }, [proposedEntrances]);
+
   async function handleSaveEntrance(proposal) {
     if (!proposal.coordinate) return;
     const feature = {
@@ -970,7 +1002,7 @@ function App() {
                       className={`entrance-save-btn ${savedEntrances[p.imageId] ? 'saved' : ''}`}
                       onClick={() => handleSaveEntrance(p)}
                       disabled={!!savedEntrances[p.imageId]}
-                      title="Save to ca.sanfrancisco.graph.polygons.geojson"
+                      title="Save to resources/entrances.geojson"
                     >
                       {savedEntrances[p.imageId] ? '✓' : 'Save'}
                     </button>
@@ -1167,7 +1199,7 @@ function ImageBucket({ title, images, selectedImageId, onSelectImage, imageCardR
               >
                 {image.imageUrl ? <img src={image.imageUrl} alt={title} loading="lazy" /> : null}
                 {hasEntrance && (
-                  <div className="entrance-badge" title={`Entrance detected (conf ${detection.confidence.toFixed(2)})`} />
+                  <div className="entrance-badge" title={detection.confidence != null ? `Entrance detected (conf ${detection.confidence.toFixed(2)})` : 'Entrance marked'} />
                 )}
                 <div className="image-meta">
                   <strong>{image.distanceMeters ? `${image.distanceMeters} m away` : 'Nearby image'}</strong>
@@ -2006,7 +2038,7 @@ function computeEntrancePoint(image, bearing, buildingFeature) {
     const fx = ax - cx, fy = ay - cy;
     const t = (fy * ex - fx * ey) / denom;
     const u = (dx * fy - dy * fx) / denom;
-    if (t > 0.001 && u >= 0 && u <= 1 && t < bestT) {
+    if (t > 1e-7 && u >= 0 && u <= 1 && t < bestT) {
       bestT = t;
       best = [(cx + t * dx) / cosLat, cy + t * dy]; // [lng, lat]
     }
