@@ -1,0 +1,22 @@
+[project]
+name = "tmap"
+version = "0.1.0"
+description = "Generate tactile and print SVG maps from an address"
+requires-python = ">=3.11"
+dependencies = [
+    "osmnx>=1.9.0",
+    "svgwrite>=1.4.3",
+    "shapely>=2.0.0",
+    "geopandas>=0.14.0",
+    "numpy>=1.26.0",
+]
+
+[project.scripts]
+tmap = "tmap.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tmap"]

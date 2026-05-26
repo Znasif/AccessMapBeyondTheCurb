@@ -1,0 +1,55 @@
+﻿{
+    "id":  "1135232745335292",
+    "altitude":  34.656773333333,
+    "atomic_scale":  0.98320222925481,
+    "camera_type":  "spherical",
+    "captured_at":  1755504783429,
+    "compass_angle":  223.48498482668,
+    "computed_altitude":  7.8924563406035,
+    "computed_compass_angle":  227.61292243471,
+    "computed_geometry":  {
+                              "type":  "Point",
+                              "coordinates":  [
+                                                  -122.39374651154,
+                                                  37.778143778062
+                                              ]
+                          },
+    "computed_rotation":  [
+                              0.77395365486856,
+                              1.7650730502535,
+                              -1.7005395552703
+                          ],
+    "creator":  {
+                    "username":  "marker_geo1",
+                    "id":  "713819173436997"
+                },
+    "exif_orientation":  1,
+    "geometry":  {
+                     "type":  "Point",
+                     "coordinates":  [
+                                         -122.39373292008,
+                                         37.778175199933
+                                     ]
+                 },
+    "height":  3840,
+    "is_pano":  true,
+    "make":  "Labpano",
+    "model":  "Pilot One",
+    "thumb_256_url":  "https://scontent-sjc6-1.xx.fbcdn.net/m1/v/t6/An_jLbtFJoT-swMP5bsKVyZd7q6vHqv8ZWf9O_Ub34qTqBTGPu8bXz6GgojrvYAFg9wpzq7jMeg8k1md0OhQe_MJFIfcrPeJ_hqQzkEfDAX7c-vkIbH_iL82BaWLfuPkVxgySkXTmh3OuuofaGNtc6M?stp=s256x128\u0026edm=ALXxkZ8EAAAA\u0026_nc_gid=VAquKfHfVdFM33y1itOJyQ\u0026_nc_oc=AdrgxnIAODj3UwI_2xF8bnhbD-cEzO1841cTiCUR1sAhFn3zy30lUsCdFA6AoUZdjvU\u0026ccb=10-5\u0026oh=00_Af5jYr-_11g9pOiI6wXATZQiIBQXBlerSjDO0dsWwgTdmw\u0026oe=6A3843C9\u0026_nc_sid=201bca",
+    "thumb_512_url":  "https://scontent-sjc6-1.xx.fbcdn.net/m1/v/t6/An_jLbtFJoT-swMP5bsKVyZd7q6vHqv8ZWf9O_Ub34qTqBTGPu8bXz6GgojrvYAFg9wpzq7jMeg8k1md0OhQe_MJFIfcrPeJ_hqQzkEfDAX7c-vkIbH_iL82BaWLfuPkVxgySkXTmh3OuuofaGNtc6M?stp=s512x256\u0026edm=ALXxkZ8EAAAA\u0026_nc_gid=VAquKfHfVdFM33y1itOJyQ\u0026_nc_oc=AdrgxnIAODj3UwI_2xF8bnhbD-cEzO1841cTiCUR1sAhFn3zy30lUsCdFA6AoUZdjvU\u0026ccb=10-5\u0026oh=00_Af4b7yVxfAYbDnvRiRKN_-5h-telILnoTpiRkcfHkXgrww\u0026oe=6A3843C9\u0026_nc_sid=201bca",
+    "thumb_1024_url":  "https://scontent-sjc6-1.xx.fbcdn.net/m1/v/t6/An_jLbtFJoT-swMP5bsKVyZd7q6vHqv8ZWf9O_Ub34qTqBTGPu8bXz6GgojrvYAFg9wpzq7jMeg8k1md0OhQe_MJFIfcrPeJ_hqQzkEfDAX7c-vkIbH_iL82BaWLfuPkVxgySkXTmh3OuuofaGNtc6M?stp=s1024x512\u0026edm=ALXxkZ8EAAAA\u0026_nc_gid=VAquKfHfVdFM33y1itOJyQ\u0026_nc_oc=AdrgxnIAODj3UwI_2xF8bnhbD-cEzO1841cTiCUR1sAhFn3zy30lUsCdFA6AoUZdjvU\u0026ccb=10-5\u0026oh=00_Af5N_YL8ywuFaoAdrDFrzF20OBPSdKNStJsHd-UK_l4B4g\u0026oe=6A3843C9\u0026_nc_sid=201bca",
+    "thumb_2048_url":  "https://scontent-sjc6-1.xx.fbcdn.net/m1/v/t6/An_jLbtFJoT-swMP5bsKVyZd7q6vHqv8ZWf9O_Ub34qTqBTGPu8bXz6GgojrvYAFg9wpzq7jMeg8k1md0OhQe_MJFIfcrPeJ_hqQzkEfDAX7c-vkIbH_iL82BaWLfuPkVxgySkXTmh3OuuofaGNtc6M?stp=s2048x1024\u0026edm=ALXxkZ8EAAAA\u0026_nc_gid=VAquKfHfVdFM33y1itOJyQ\u0026_nc_oc=AdrgxnIAODj3UwI_2xF8bnhbD-cEzO1841cTiCUR1sAhFn3zy30lUsCdFA6AoUZdjvU\u0026ccb=10-5\u0026oh=00_Af7t6lMCEfEYdX5oUaGolVZ95EW3H6SmLx7m2sxIRcuiEg\u0026oe=6A3843C9\u0026_nc_sid=201bca",
+    "thumb_original_url":  "https://scontent-sjc6-1.xx.fbcdn.net/m1/v/t6/An_jLbtFJoT-swMP5bsKVyZd7q6vHqv8ZWf9O_Ub34qTqBTGPu8bXz6GgojrvYAFg9wpzq7jMeg8k1md0OhQe_MJFIfcrPeJ_hqQzkEfDAX7c-vkIbH_iL82BaWLfuPkVxgySkXTmh3OuuofaGNtc6M?edm=ALXxkZ8EAAAA\u0026_nc_gid=VAquKfHfVdFM33y1itOJyQ\u0026_nc_oc=AdrgxnIAODj3UwI_2xF8bnhbD-cEzO1841cTiCUR1sAhFn3zy30lUsCdFA6AoUZdjvU\u0026ccb=10-5\u0026oh=00_Af7eLHhc_zWC4WDEdCAIGUE4Hd0t2g55nkeW36yu_cQ7cA\u0026oe=6A3843C9\u0026_nc_sid=201bca",
+    "quality_score":  0.951,
+    "merge_cc":  947410688,
+    "mesh":  {
+                 "id":  "2527219967636905",
+                 "url":  "https://scontent-sjc6-1.xx.fbcdn.net/m1/v/t0.40361-6/An9Okqj8V6TlYDJfK6FVN-KlGv7nUyy7fRZOgh2xDXnag1Qw0oZ-UiEfqerUTKmv9c-7wzW8AA_NntYNAFeha17Mw95IPEA4sdxkY63cw3SlrapmFrvdX2umays1AIcrhtAS?edm=ALXxkZ8EAAAA\u0026_nc_gid=VAquKfHfVdFM33y1itOJyQ\u0026_nc_oc=AdoFEn4cf7VaRfraJ7a0wMozCtG51W8kAuUU3L3nEqsyGrmUGXEpAyfwMTsjSpOsL7Q\u0026ccb=10-5\u0026oh=00_Af73Qo8gGpWyXGjJnIqU7m5wd-IRL4juDFniW6D9SASyHA\u0026oe=6A384253\u0026_nc_sid=5e042c"
+             },
+    "sequence":  "TZs3WI2tchnGv8aNpoFCx1",
+    "sfm_cluster":  {
+                        "id":  "1499012307945786",
+                        "url":  "https://scontent-sjc6-1.xx.fbcdn.net/m1/v/t0.40383-6/An80aB6T9rzBhSMe51BuY9yB6qE8JBXa7B5EtTzAgUWTiuOKXGjB0wMjLU5QVgPKsddYmhmvehKpW0QptvBfMiEBIeh02MMR6rA4UEuXWyW2ApvZZFh4QOuv8r99JuuVCuUc-URnKsT_5g?edm=ALXxkZ8EAAAA\u0026_nc_gid=VAquKfHfVdFM33y1itOJyQ\u0026_nc_oc=AdrtNkKkQyDvH8z7NEY2c0r7kaTgKFToxrQMCLeBdAWvKuTSRIaklvthW5UD5bUB02w\u0026ccb=10-5\u0026oh=00_Af57ARCzLpwRTEGmjkgObZq8_UBgEY8iBf3pnVhiBtI3Dg\u0026oe=6A38439F\u0026_nc_sid=fbd883"
+                    },
+    "width":  7680
+}
