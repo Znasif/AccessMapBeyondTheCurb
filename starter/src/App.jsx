@@ -358,6 +358,9 @@ function App() {
     map.on('load', () => {
       mapLoadedRef.current = true;
       addCustomLayersRef.current(map);
+      // Tactile mode is the initial state — hide GeoJSON buildings (roads only)
+      map.setLayoutProperty('buildings-fill', 'visibility', 'none');
+      map.setLayoutProperty('buildings-outline', 'visibility', 'none');
     });
 
     map.on('click', (event) => {
@@ -388,7 +391,7 @@ function App() {
 
     map.once('style.load', () => {
       addCustomLayersRef.current(map);
-      if (!showTactile) {
+      if (showTactile) {
         map.setLayoutProperty('buildings-fill', 'visibility', 'none');
         map.setLayoutProperty('buildings-outline', 'visibility', 'none');
       }
