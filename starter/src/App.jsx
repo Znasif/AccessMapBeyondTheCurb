@@ -623,9 +623,9 @@ function App() {
       map.getSource('pin-grid-mask')?.setData(maskGeoJSON);
     };
 
-    // Compute on initial enable + every pan/zoom stop
+    // Compute now and on every subsequent pan/zoom stop
     map.on('moveend', computeGrid);
-    map.once('idle', computeGrid);
+    computeGrid();
 
     return () => map.off('moveend', computeGrid);
   }, [showTactile, pinScale, bboxPadding]);
