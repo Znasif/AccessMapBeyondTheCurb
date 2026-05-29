@@ -4,6 +4,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import '@photo-sphere-viewer/core/index.css';
 import { loadEntranceModel, detectEntrance } from './entranceDetector';
 import TACTILE_STYLE from './tactileStyle';
+import { computeScaleBBox, rasterizeRoads, pinGridToGeoJSON, queryRoadFeatures, MIN_ZOOM } from './pinGrid';
 
 const GH_HQ = {
   lng: -122.391,
@@ -59,6 +60,8 @@ function App() {
   const [entranceOverlays, setEntranceOverlays] = useState({});
   const [savedEntrances, setSavedEntrances] = useState({});  // imageId → true
   const [showTactile, setShowTactile] = useState(true);
+  const [pinScale, setPinScale] = useState(5000);
+  const [bboxPadding, setBboxPadding] = useState(0.15);
   const modelRef = useRef(null);
 
   const addCustomLayersRef = useRef(null);
@@ -69,6 +72,8 @@ function App() {
   const destinationBuildingsDataRef = useRef(EMPTY_GEOJSON);
   const entranceLineDataRef = useRef(EMPTY_GEOJSON);
   const proposedEntranceDataRef = useRef(EMPTY_GEOJSON);
+  const pinGridDataRef = useRef(EMPTY_GEOJSON);
+  const pinGridMaskRef = useRef(EMPTY_GEOJSON);
 
   const proximity = useMemo(
     () => [startPoint, endPoint].find(Boolean) || { lng: GH_HQ.lng, lat: GH_HQ.lat },
@@ -126,6 +131,49 @@ function App() {
         source: 'buildings',
         filter: ['has', 'building'],
         paint: { 'line-color': '#000000', 'line-width': 1, 'line-opacity': 0.8 },
+      });
+
+      // ---- Pin grid (braille display simulation) ----
+      m.addSource('pin-grid-mask', { type: 'geojson', data: EMPTY_GEOJSON });
+      m.addLayer({
+        id: 'pin-grid-mask-fill',
+        type: 'fill',
+        source: 'pin-grid-mask',
+        paint: { 'fill-color': '#ffffff', 'fill-opacity': 0.95 },
+      });
+      m.addLayer({
+        id: 'pin-grid-outline',
+        type: 'line',
+        source: 'pin-grid-mask',
+        paint: { 'line-color': '#414042', 'line-width': 1.5, 'line-opacity': 0.6 },
+      });
+
+      m.addSource('pin-grid-pins', { type: 'geojson', data: EMPTY_GEOJSON });
+      m.addLayer({
+        id: 'pin-grid-down',
+        type: 'circle',
+        source: 'pin-grid-pins',
+        filter: ['==', ['get', 'up'], false],
+        paint: {
+          'circle-radius': 3,
+          'circle-color': '#d2d2d2',
+          'circle-stroke-width': 0.5,
+          'circle-stroke-color': '#b4b4b4',
+          'circle-opacity': 0.3,
+        },
+      });
+      m.addLayer({
+        id: 'pin-grid-up',
+        type: 'circle',
+        source: 'pin-grid-pins',
+        filter: ['==', ['get', 'up'], true],
+        paint: {
+          'circle-radius': 3,
+          'circle-color': '#1e1e1e',
+          'circle-stroke-width': 0.5,
+          'circle-stroke-color': '#b4b4b4',
+          'circle-opacity': 0.95,
+        },
       });
 
       m.addSource('origin-buildings', { type: 'geojson', data: EMPTY_GEOJSON });
@@ -410,6 +458,13 @@ function App() {
       map.getSource('proposed-entrances')?.setData(proposedEntranceDataRef.current);
       map.getSource('origin-buildings')?.setData(originBuildingsDataRef.current);
       map.getSource('destination-buildings')?.setData(destinationBuildingsDataRef.current);
+      map.getSource('pin-grid-pins')?.setData(pinGridDataRef.current);
+      map.getSource('pin-grid-mask')?.setData(pinGridMaskRef.current);
+      if (!showTactile) {
+        ['pin-grid-mask-fill', 'pin-grid-outline', 'pin-grid-down', 'pin-grid-up'].forEach((id) => {
+          if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
+        });
+      }
     });
   }, [showTactile]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -527,6 +582,53 @@ function App() {
     map.once('idle', handler);
     return () => map.off('idle', handler);
   }, [endPoint]);
+
+  // ---- Pin-grid computation (braille rasterization) ----
+  // Recomputes on every pan/zoom — the grid always tracks the viewport.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // Clear pin grid when not in tactile mode
+    if (!showTactile) {
+      pinGridDataRef.current = EMPTY_GEOJSON;
+      pinGridMaskRef.current = EMPTY_GEOJSON;
+      if (mapLoadedRef.current) {
+        map.getSource('pin-grid-pins')?.setData(EMPTY_GEOJSON);
+        map.getSource('pin-grid-mask')?.setData(EMPTY_GEOJSON);
+      }
+      return;
+    }
+
+    const computeGrid = () => {
+      if (!mapLoadedRef.current) return;
+
+      const zoom = map.getZoom();
+      if (zoom < MIN_ZOOM) {
+        pinGridDataRef.current = EMPTY_GEOJSON;
+        pinGridMaskRef.current = EMPTY_GEOJSON;
+        map.getSource('pin-grid-pins')?.setData(EMPTY_GEOJSON);
+        map.getSource('pin-grid-mask')?.setData(EMPTY_GEOJSON);
+        return;
+      }
+
+      const bbox = computeScaleBBox(map, pinScale, bboxPadding);
+      const roads = queryRoadFeatures(map, bbox);
+      const grid = rasterizeRoads(roads, bbox);
+      const { pinGeoJSON, maskGeoJSON } = pinGridToGeoJSON(grid, bbox);
+
+      pinGridDataRef.current = pinGeoJSON;
+      pinGridMaskRef.current = maskGeoJSON;
+      map.getSource('pin-grid-pins')?.setData(pinGeoJSON);
+      map.getSource('pin-grid-mask')?.setData(maskGeoJSON);
+    };
+
+    // Compute on initial enable + every pan/zoom stop
+    map.on('moveend', computeGrid);
+    map.once('idle', computeGrid);
+
+    return () => map.off('moveend', computeGrid);
+  }, [showTactile, pinScale, bboxPadding]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -912,6 +1014,27 @@ function App() {
             />
             <span>Tactile map</span>
           </label>
+
+          {showTactile && (
+            <div style={{ paddingLeft: '1rem', borderLeft: '2px solid #e5e7eb' }}>
+              <SliderField
+                label={`Scale 1:${pinScale.toLocaleString()}`}
+                min={500}
+                max={20000}
+                step={500}
+                value={pinScale}
+                onChange={setPinScale}
+              />
+              <SliderField
+                label={`Grid padding: ${Math.round(bboxPadding * 100)}%`}
+                min={0}
+                max={0.5}
+                step={0.05}
+                value={bboxPadding}
+                onChange={setBboxPadding}
+              />
+            </div>
+          )}
 
           <button
             type="button"

@@ -5,3 +5,9 @@ dist
 .env
 /tmap_py/cache
 /tmap_py/.out
+mapillary-entrances/
+starter/resources/ca.sanfrancisco.graph.polygons.geojson
+/tmap_py/out
+/tmap_py/src
+/tmap_py/src/tmap/__pycache__
+/tmap_py/src/tmap/__pycache__
