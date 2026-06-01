@@ -738,6 +738,83 @@ code {
   pointer-events: none;
 }
 
+/* ---- Tactile explorer overlay ---- */
+
+/* Full-map transparent overlay; cv.imshow writes pixel-exact content */
+.tactile-map-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Coordinate pill shown at the bottom-centre of the map */
+.tactile-coord-hud {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.72);
+  color: #facc15;
+  padding: 4px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Debug panel — temporary, remove with debugRef once overlay is confirmed */
+.tactile-debug-panel {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  z-index: 50;
+  width: 320px;
+  background: #000;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+
+.tactile-debug-header {
+  padding: 5px 10px;
+  background: #1e293b;
+  color: #94a3b8;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tactile-debug-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Status message (shown while loading, searching, or on error) */
+.tactile-status-hud {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.65);
+  color: #e2e8f0;
+  padding: 8px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 @media (max-width: 980px) {
   body {
     overflow: auto;

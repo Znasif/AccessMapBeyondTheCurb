@@ -5,6 +5,7 @@ import '@photo-sphere-viewer/core/index.css';
 import { loadEntranceModel, detectEntrance } from './entranceDetector';
 import TACTILE_STYLE from './tactileStyle';
 import { computeScaleBBox, rasterizeRoads, pinGridToGeoJSON, queryRoadFeatures, MIN_ZOOM } from './pinGrid';
+import { TactileExplorer } from './TactileExplorer';
 
 const GH_HQ = {
   lng: -122.391,
@@ -62,6 +63,8 @@ function App() {
   const [showTactile, setShowTactile] = useState(true);
   const [pinScale, setPinScale] = useState(5000);
   const [bboxPadding, setBboxPadding] = useState(0.15);
+  const [pinBbox, setPinBbox] = useState(null);
+  const [showExplorer, setShowExplorer] = useState(false);
   const modelRef = useRef(null);
 
   const addCustomLayersRef = useRef(null);
@@ -613,6 +616,7 @@ function App() {
       }
 
       const bbox = computeScaleBBox(map, pinScale, bboxPadding);
+      setPinBbox(bbox);
       const roads = queryRoadFeatures(map, bbox);
       const grid = rasterizeRoads(roads, bbox);
       const { pinGeoJSON, maskGeoJSON } = pinGridToGeoJSON(grid, bbox);
@@ -1033,6 +1037,14 @@ function App() {
                 value={bboxPadding}
                 onChange={setBboxPadding}
               />
+              <label className="switch-row" style={{ marginBottom: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={showExplorer}
+                  onChange={(e) => setShowExplorer(e.target.checked)}
+                />
+                <span>Explore with camera</span>
+              </label>
             </div>
           )}
 
@@ -1162,6 +1174,15 @@ function App() {
             onClose={() => setExpandedImage(null)}
           />
         ) : null}
+
+        {showExplorer && showTactile && (
+          <TactileExplorer
+            bbox={pinBbox}
+            mapRef={mapRef}
+            mapLoadedRef={mapLoadedRef}
+            templateUrl="/Vision Walk.jpg"
+          />
+        )}
       </main>
     </div>
   );
