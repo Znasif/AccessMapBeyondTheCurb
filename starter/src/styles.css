@@ -799,6 +799,44 @@ code {
   height: auto;
 }
 
+/* Audiom audio-only embed, framed to match the tactile bbox */
+.audiom-panel {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 40;
+  width: 320px;
+  height: 420px;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.audiom-panel--error {
+  height: auto;
+  padding: 10px 12px;
+  color: #e2e8f0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.audiom-panel-header {
+  padding: 5px 10px;
+  background: #1e293b;
+  color: #94a3b8;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.audiom-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+}
+
 /* Status message (shown while loading, searching, or on error) */
 .tactile-status-hud {
   position: absolute;
@@ -848,5 +886,15 @@ code {
   .tactile-debug-header {
     padding: 3px 6px;
     font-size: 9px;
+  }
+
+  /* Shrink the Audiom panel so it shares the small screen with the map */
+  .audiom-panel {
+    width: 44vw;
+    max-width: 200px;
+    height: 38vh;
+    max-height: 280px;
+    top: 12px;
+    right: 12px;
   }
 }

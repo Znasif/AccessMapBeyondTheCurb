@@ -6,6 +6,7 @@ import { loadEntranceModel, detectEntrance } from './entranceDetector';
 import TACTILE_STYLE from './tactileStyle';
 import { computeScaleBBox, rasterizeRoads, pinGridToGeoJSON, queryRoadFeatures, MIN_ZOOM } from './pinGrid';
 import { TactileExplorer } from './TactileExplorer';
+import { AudiomAvatar } from './AudiomAvatar';
 
 const GH_HQ = {
   lng: -122.391,
@@ -65,6 +66,8 @@ function App() {
   const [bboxPadding, setBboxPadding] = useState(0.15);
   const [pinBbox, setPinBbox] = useState(null);
   const [showExplorer, setShowExplorer] = useState(false);
+  const [showAudiom, setShowAudiom] = useState(false);
+  const fingerCoordRef = useRef(null);
   const modelRef = useRef(null);
 
   const addCustomLayersRef = useRef(null);
@@ -1045,6 +1048,14 @@ function App() {
                 />
                 <span>Explore with camera</span>
               </label>
+              <label className="switch-row" style={{ marginBottom: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={showAudiom}
+                  onChange={(e) => setShowAudiom(e.target.checked)}
+                />
+                <span>Audiom audio (sync to tactile)</span>
+              </label>
             </div>
           )}
 
@@ -1181,7 +1192,12 @@ function App() {
             mapRef={mapRef}
             mapLoadedRef={mapLoadedRef}
             templateUrl="/Vision Walk.jpg"
+            onCoord={(coord) => { fingerCoordRef.current = coord; }}
           />
+        )}
+
+        {showAudiom && showTactile && pinBbox && (
+          <AudiomAvatar bbox={pinBbox} coordRef={fingerCoordRef} throttleMs={1000} />
         )}
       </main>
     </div>
