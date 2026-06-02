@@ -34,6 +34,7 @@ export function TactileExplorer({
   mapLoadedRef,
   templateUrl = '/braille.png',
   onCoord,
+  groundTruthProbe,
 }) {
   const videoRef   = useRef(null);
   const offRef     = useRef(document.createElement('canvas')); // clean frame for ORB
@@ -347,6 +348,16 @@ export function TactileExplorer({
     };
   }, [templateUrl]);
 
+  // Compute live distance to ground-truth probe
+  const probeDistMeters = (coord && groundTruthProbe) ? (() => {
+    const toRad = d => d * Math.PI / 180;
+    const R = 6371000;
+    const dLat = toRad(groundTruthProbe.lat - coord.lat);
+    const dLng = toRad(groundTruthProbe.lng - coord.lng);
+    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(coord.lat)) * Math.cos(toRad(groundTruthProbe.lat)) * Math.sin(dLng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  })() : null;
+
   return (
     <>
       <video ref={videoRef} muted playsInline style={{ display: 'none' }} />
@@ -362,7 +373,29 @@ export function TactileExplorer({
 
       {coord && (
         <div className="tactile-coord-hud">
-          {coord.lat.toFixed(6)},&thinsp;{coord.lng.toFixed(6)}
+          <div>Finger: {coord.lat.toFixed(6)},&thinsp;{coord.lng.toFixed(6)}</div>
+          {groundTruthProbe && (
+            <div style={{ color: '#facc15', fontSize: '0.85em' }}>
+              Probe: {groundTruthProbe.lat.toFixed(6)},&thinsp;{groundTruthProbe.lng.toFixed(6)}
+            </div>
+          )}
+          {probeDistMeters !== null && (
+            <div style={{
+              color: probeDistMeters < 5 ? '#22c55e' : probeDistMeters < 15 ? '#facc15' : '#ef4444',
+              fontWeight: 'bold',
+              fontSize: '1.1em',
+            }}>
+              Δ {probeDistMeters < 1 ? probeDistMeters.toFixed(2) : probeDistMeters.toFixed(1)} m
+            </div>
+          )}
+        </div>
+      )}
+      {!coord && groundTruthProbe && (
+        <div className="tactile-coord-hud" style={{ opacity: 0.7 }}>
+          <div style={{ color: '#facc15' }}>Probe set — point at it</div>
+          <div style={{ fontSize: '0.85em' }}>
+            {groundTruthProbe.lat.toFixed(6)},&thinsp;{groundTruthProbe.lng.toFixed(6)}
+          </div>
         </div>
       )}
       {status !== 'Tracking' && (

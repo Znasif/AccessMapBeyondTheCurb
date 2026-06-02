@@ -471,6 +471,16 @@ code {
   background: #ef4444;
 }
 
+/* Ground-truth probe crosshair — click the map while explorer is active */
+.probe-marker {
+  font-size: 28px;
+  color: #ef4444;
+  text-shadow: 0 0 6px rgba(0,0,0,0.7), 0 0 2px #fff;
+  pointer-events: none;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
+}
+
 /* ---- Floating image viewer panel ---- */
 
 .viewer-panel {
@@ -759,16 +769,17 @@ code {
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
-  background: rgba(0, 0, 0, 0.72);
-  color: #facc15;
-  padding: 4px 14px;
-  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #e2e8f0;
+  padding: 6px 14px;
+  border-radius: 12px;
   font-size: 13px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
   pointer-events: none;
-  white-space: nowrap;
+  text-align: center;
+  line-height: 1.5;
 }
 
 /* Debug panel — temporary, remove with debugRef once overlay is confirmed */
@@ -835,6 +846,36 @@ code {
   flex: 1;
   width: 100%;
   border: 0;
+}
+
+/* Verification overlay: transparent Audiom map laid over the tactile/background
+   map so the yellow finger dot can be compared against Audiom's streets. Sits
+   below the finger-dot canvas (z-index 10) and ignores pointer events. */
+.audiom-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  z-index: 5;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.audiom-telemetry {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.78);
+  color: #e2e8f0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  max-width: 280px;
 }
 
 /* Status message (shown while loading, searching, or on error) */

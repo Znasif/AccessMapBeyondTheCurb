@@ -67,7 +67,13 @@ function App() {
   const [pinBbox, setPinBbox] = useState(null);
   const [showExplorer, setShowExplorer] = useState(false);
   const [showAudiom, setShowAudiom] = useState(false);
+  const [audiomZoomOffset, setAudiomZoomOffset] = useState(0);
+  const [audiomOffsetX, setAudiomOffsetX] = useState(160);
+  const [audiomOffsetY, setAudiomOffsetY] = useState(-33);
   const fingerCoordRef = useRef(null);
+  const [groundTruthProbe, setGroundTruthProbe] = useState(null);
+  const probeMarkerRef = useRef(null);
+  const probeClickRef = useRef(null);
   const modelRef = useRef(null);
 
   const addCustomLayersRef = useRef(null);
@@ -96,6 +102,40 @@ function App() {
   useEffect(() => { routeStateRef.current = routeState; }, [routeState]);
   useEffect(() => { imageryRef.current = imagery; }, [imagery]);
   useEffect(() => { selectedImageIdRef.current = selectedImageId; }, [selectedImageId]);
+
+  // Ground-truth probe: when explorer is active, clicks drop a reference marker
+  useEffect(() => {
+    if (showExplorer && showTactile) {
+      probeClickRef.current = (point) => {
+        setGroundTruthProbe(point);
+      };
+    } else {
+      probeClickRef.current = null;
+      setGroundTruthProbe(null);
+    }
+    return () => { probeClickRef.current = null; };
+  }, [showExplorer, showTactile]);
+
+  // Sync probe marker on map
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!groundTruthProbe) {
+      probeMarkerRef.current?.remove();
+      probeMarkerRef.current = null;
+      return;
+    }
+    if (!probeMarkerRef.current) {
+      const el = document.createElement('div');
+      el.className = 'probe-marker';
+      el.innerHTML = '✛';
+      probeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
+        .setLngLat([groundTruthProbe.lng, groundTruthProbe.lat])
+        .addTo(map);
+    } else {
+      probeMarkerRef.current.setLngLat([groundTruthProbe.lng, groundTruthProbe.lat]);
+    }
+  }, [groundTruthProbe]);
 
   useEffect(() => {
     if (!mapboxToken || mapRef.current) {
@@ -418,10 +458,13 @@ function App() {
     });
 
     map.on('click', (event) => {
-      mapSelectionHandlerRef.current?.({
-        lng: event.lngLat.lng,
-        lat: event.lngLat.lat,
-      });
+      const point = { lng: event.lngLat.lng, lat: event.lngLat.lat };
+      // When explorer is active, clicks set a ground-truth probe marker
+      if (probeClickRef.current) {
+        probeClickRef.current(point);
+      } else {
+        mapSelectionHandlerRef.current?.(point);
+      }
     });
 
     mapRef.current = map;
@@ -1056,6 +1099,34 @@ function App() {
                 />
                 <span>Audiom audio (sync to tactile)</span>
               </label>
+              {showAudiom && (
+                <>
+                  <SliderField
+                    label={`Audiom zoom offset: ${audiomZoomOffset >= 0 ? '+' : ''}${audiomZoomOffset}`}
+                    min={-3}
+                    max={3}
+                    step={0.25}
+                    value={audiomZoomOffset}
+                    onChange={setAudiomZoomOffset}
+                  />
+                  <SliderField
+                    label={`Audiom X offset: ${audiomOffsetX}px`}
+                    min={-300}
+                    max={300}
+                    step={1}
+                    value={audiomOffsetX}
+                    onChange={setAudiomOffsetX}
+                  />
+                  <SliderField
+                    label={`Audiom Y offset: ${audiomOffsetY}px`}
+                    min={-300}
+                    max={300}
+                    step={1}
+                    value={audiomOffsetY}
+                    onChange={setAudiomOffsetY}
+                  />
+                </>
+              )}
             </div>
           )}
 
@@ -1193,11 +1264,21 @@ function App() {
             mapLoadedRef={mapLoadedRef}
             templateUrl="/Vision Walk.jpg"
             onCoord={(coord) => { fingerCoordRef.current = coord; }}
+            groundTruthProbe={groundTruthProbe}
           />
         )}
 
-        {showAudiom && showTactile && pinBbox && (
-          <AudiomAvatar bbox={pinBbox} coordRef={fingerCoordRef} throttleMs={1000} />
+        {showAudiom && showTactile && (
+          <AudiomAvatar
+            bbox={pinBbox}
+            coordRef={fingerCoordRef}
+            throttleMs={1000}
+            overlay
+            mapRef={mapRef}
+            zoomOffset={audiomZoomOffset}
+            offsetX={audiomOffsetX}
+            offsetY={audiomOffsetY}
+          />
         )}
       </main>
     </div>
