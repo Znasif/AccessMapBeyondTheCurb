@@ -43,8 +43,10 @@ export default defineConfig({
     exclude: ['onnxruntime-web'],
   },
   server: {
+    host: '0.0.0.0',
     port: 5173,
     open: true,
+    allowedHosts: true,
     proxy: {
       '/accessmap-api': {
         target: 'https://stage.accessmap.app',

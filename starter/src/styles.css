@@ -835,4 +835,18 @@ code {
   .map-panel {
     min-height: 60vh;
   }
+
+  /* Keep the camera/debug preview from covering the map on small screens */
+  .tactile-debug-panel {
+    width: 38vw;
+    max-width: 160px;
+    bottom: 12px;
+    left: 12px;
+    opacity: 0.9;
+  }
+
+  .tactile-debug-header {
+    padding: 3px 6px;
+    font-size: 9px;
+  }
 }

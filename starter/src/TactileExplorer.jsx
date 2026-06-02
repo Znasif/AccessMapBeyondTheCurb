@@ -114,7 +114,11 @@ export function TactileExplorer({
 
       setStatus('Opening camera…');
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: { ideal: 'environment' },
+        },
       });
       if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
       videoRef.current.srcObject = stream;
