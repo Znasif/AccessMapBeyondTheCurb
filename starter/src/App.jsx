@@ -67,9 +67,6 @@ function App() {
   const [pinBbox, setPinBbox] = useState(null);
   const [showExplorer, setShowExplorer] = useState(false);
   const [showAudiom, setShowAudiom] = useState(false);
-  const [audiomZoomOffset, setAudiomZoomOffset] = useState(0);
-  const [audiomOffsetX, setAudiomOffsetX] = useState(160);
-  const [audiomOffsetY, setAudiomOffsetY] = useState(-33);
   const fingerCoordRef = useRef(null);
   const [groundTruthProbe, setGroundTruthProbe] = useState(null);
   const probeMarkerRef = useRef(null);
@@ -1099,34 +1096,6 @@ function App() {
                 />
                 <span>Audiom audio (sync to tactile)</span>
               </label>
-              {showAudiom && (
-                <>
-                  <SliderField
-                    label={`Audiom zoom offset: ${audiomZoomOffset >= 0 ? '+' : ''}${audiomZoomOffset}`}
-                    min={-3}
-                    max={3}
-                    step={0.25}
-                    value={audiomZoomOffset}
-                    onChange={setAudiomZoomOffset}
-                  />
-                  <SliderField
-                    label={`Audiom X offset: ${audiomOffsetX}px`}
-                    min={-300}
-                    max={300}
-                    step={1}
-                    value={audiomOffsetX}
-                    onChange={setAudiomOffsetX}
-                  />
-                  <SliderField
-                    label={`Audiom Y offset: ${audiomOffsetY}px`}
-                    min={-300}
-                    max={300}
-                    step={1}
-                    value={audiomOffsetY}
-                    onChange={setAudiomOffsetY}
-                  />
-                </>
-              )}
             </div>
           )}
 
@@ -1273,11 +1242,6 @@ function App() {
             bbox={pinBbox}
             coordRef={fingerCoordRef}
             throttleMs={1000}
-            overlay
-            mapRef={mapRef}
-            zoomOffset={audiomZoomOffset}
-            offsetX={audiomOffsetX}
-            offsetY={audiomOffsetY}
           />
         )}
       </main>
