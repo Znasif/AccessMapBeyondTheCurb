@@ -47,6 +47,7 @@ export default defineConfig({
     port: 5173,
     open: true,
     allowedHosts: true,
+    hmr: { clientPort: 443, protocol: 'wss' },
     proxy: {
       '/accessmap-api': {
         target: 'https://stage.accessmap.app',

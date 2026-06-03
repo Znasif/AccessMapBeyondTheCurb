@@ -1231,7 +1231,7 @@ function App() {
             bbox={pinBbox}
             mapRef={mapRef}
             mapLoadedRef={mapLoadedRef}
-            templateUrl="/Vision Walk.jpg"
+            templateUrl="/braille.png"
             onCoord={(coord) => { fingerCoordRef.current = coord; }}
             groundTruthProbe={groundTruthProbe}
           />

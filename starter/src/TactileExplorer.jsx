@@ -99,14 +99,28 @@ export function TactileExplorer({
       cv.cvtColor(tplMat, tplGray, cv.COLOR_RGBA2GRAY);
       tplMat.delete();
 
-      // AKAZE: works on real photos (device text/border/logos), always in standard builds.
-      // Future: restrict to a border-only mask so inner pin changes don't matter.
+      // AKAZE restricted to a border-only mask: the dot grid interior is a
+      // periodic texture that produces phantom homographies shifted by N grid
+      // spacings. Only the outer border strip (corners, clips, text) has unique
+      // features that can anchor a correct homography.
       st.sift  = new cv.AKAZE();
       st.kpTpl = new cv.KeyPointVector();
       st.descTpl = new cv.Mat();
-      const emptyMask = new cv.Mat();
-      st.sift.detectAndCompute(tplGray, emptyMask, st.kpTpl, st.descTpl);
-      emptyMask.delete();
+
+      const borderMask = new cv.Mat(st.tplH, st.tplW, cv.CV_8UC1, new cv.Scalar(0));
+      const bw = Math.round(st.tplW * 0.12); // 12% strip on each side
+      const bh = Math.round(st.tplH * 0.12);
+      // Top strip
+      borderMask.roi(new cv.Rect(0, 0, st.tplW, bh)).setTo(new cv.Scalar(255));
+      // Bottom strip
+      borderMask.roi(new cv.Rect(0, st.tplH - bh, st.tplW, bh)).setTo(new cv.Scalar(255));
+      // Left strip (full height to fill corners)
+      borderMask.roi(new cv.Rect(0, 0, bw, st.tplH)).setTo(new cv.Scalar(255));
+      // Right strip
+      borderMask.roi(new cv.Rect(st.tplW - bw, 0, bw, st.tplH)).setTo(new cv.Scalar(255));
+
+      st.sift.detectAndCompute(tplGray, borderMask, st.kpTpl, st.descTpl);
+      borderMask.delete();
       tplGray.delete();
 
       // HAMMING norm for AKAZE binary descriptors; crossCheck=false needed for knnMatch
