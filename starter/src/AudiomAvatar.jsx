@@ -87,12 +87,10 @@ export function AudiomAvatar({
   coordRef,
   throttleMs = 1000,
   minMoveFrac = 0.04,
-  settleFrac = 0.03,
 }) {
   const iframeRef = useRef(null);
   const readyRef = useRef(false);
   const lastSentRef = useRef(null);
-  const prevTickRef = useRef(null);
   const [status, setStatus] = useState('Loading…');
 
   const spanMeters = useMemo(() => {
@@ -129,7 +127,6 @@ export function AudiomAvatar({
     if (!AUDIOM_ORIGIN) return undefined;
     readyRef.current = false;
     lastSentRef.current = null;
-    prevTickRef.current = null;
     setStatus('Loading…');
 
     function onMessage(event) {
@@ -163,14 +160,7 @@ export function AudiomAvatar({
         return;
       }
 
-      const prev = prevTickRef.current;
-      prevTickRef.current = coord;
-
-      const settleMeters = settleFrac * spanMeters;
       const minMoveMeters = minMoveFrac * spanMeters;
-
-      if (!prev || metersBetween(prev, coord) > settleMeters) return;
-
       const last = lastSentRef.current;
       if (last && metersBetween(last, coord) < minMoveMeters) return;
 
@@ -182,7 +172,7 @@ export function AudiomAvatar({
     }, throttleMs);
 
     return () => clearInterval(id);
-  }, [throttleMs, coordRef, minMoveFrac, settleFrac, spanMeters]);
+  }, [throttleMs, coordRef, minMoveFrac, spanMeters]);
 
   if (!EMBED_URL || !API_KEY) {
     return (

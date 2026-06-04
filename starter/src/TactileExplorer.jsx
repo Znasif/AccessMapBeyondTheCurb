@@ -13,6 +13,27 @@ function waitForOpenCV() {
   });
 }
 
+// One Euro Filter — speed-adaptive low-pass filter for noisy tracking input.
+// High velocity → low smoothing (responsive); low velocity → high smoothing (jitter suppressed).
+// Casiez et al. 2012, CHI. Parameters: minCutoff=1Hz, beta=0.007, dCutoff=1Hz.
+function makeOneEuroFilter(minCutoff = 1.0, beta = 0.007, dCutoff = 1.0) {
+  let xFilt = null, dxFilt = 0, lastT = null;
+  const alpha = (cutoff, dt) => {
+    const tau = 1 / (2 * Math.PI * cutoff);
+    return 1 / (1 + tau / dt);
+  };
+  return function filter(x, t) {
+    if (lastT === null) { xFilt = x; lastT = t; return x; }
+    const dt = Math.max((t - lastT) / 1000, 1e-6); // ms → s
+    lastT = t;
+    const dx = (x - xFilt) / dt;
+    dxFilt = dxFilt + alpha(dCutoff, dt) * (dx - dxFilt);
+    const cutoff = minCutoff + beta * Math.abs(dxFilt);
+    xFilt = xFilt + alpha(cutoff, dt) * (x - xFilt);
+    return xFilt;
+  };
+}
+
 /**
  * Warps the camera's view of the physical braille.png back onto the digital
  * map using continuous ORB template matching (handles perspective + movement).
@@ -60,6 +81,8 @@ export function TactileExplorer({
     Hinv: null,       // camera frame → template
     Hcs:  null,       // camera frame → screen (reused by finger dot each frame)
     tick: 0,
+    oefX: makeOneEuroFilter(),
+    oefY: makeOneEuroFilter(),
   });
   const bboxRef = useRef(bbox);
   useEffect(() => { bboxRef.current = bbox; }, [bbox]);
@@ -193,12 +216,13 @@ export function TactileExplorer({
       off.getContext('2d').drawImage(video, 0, 0);
 
       // ── Hand detection ─────────────────────────────────────────────
-      const result = st.hl.detectForVideo(video, performance.now());
+      const now = performance.now();
+      const result = st.hl.detectForVideo(video, now);
       let fx = null, fy = null;
       if (result.landmarks?.length) {
         const tip = result.landmarks[0][8];
-        fx = tip.x * vw;
-        fy = tip.y * vh;
+        fx = st.oefX(tip.x * vw, now);
+        fy = st.oefY(tip.y * vh, now);
       }
 
       // ── SIFT + homography (every 6 frames) ─────────────────────────
@@ -413,6 +437,8 @@ export function TactileExplorer({
       st.descTpl?.delete(); st.kpTpl?.delete();
       st.sift?.delete(); st.bf?.delete();
       st.Hfwd = st.Hinv = st.Hcs = st.descTpl = st.kpTpl = st.sift = st.bf = null;
+      st.oefX = makeOneEuroFilter();
+      st.oefY = makeOneEuroFilter();
     };
   }, [templateUrl]);
 
