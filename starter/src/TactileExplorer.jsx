@@ -80,6 +80,8 @@ export function TactileExplorer({
     Hfwd: null,       // template → camera frame
     Hinv: null,       // camera frame → template
     Hcs:  null,       // camera frame → screen (reused by finger dot each frame)
+    bestInliers: 0,
+    bestInliersAt: 0,  // performance.now() of last improvement
     tick: 0,
     oefX: makeOneEuroFilter(),
     oefY: makeOneEuroFilter(),
@@ -265,12 +267,15 @@ export function TactileExplorer({
             srcPts.delete(); dstPts.delete(); inlierMask.delete();
 
             setDebugInfo({ good: good.length, inliers });
-            // Require at least 8 inliers — fewer means an unreliable/degenerate H
-            if (inliers >= 8) {
+            const stale = (now - st.bestInliersAt) > 7000;
+            if (stale) st.bestInliers = 0;
+            if (inliers >= 8 && inliers >= st.bestInliers) {
               st.Hfwd?.delete(); st.Hinv?.delete();
               st.Hfwd = Hfwd;
               st.Hinv = new cv.Mat();
               cv.invert(Hfwd, st.Hinv, cv.DECOMP_SVD);
+              st.bestInliers = inliers;
+              st.bestInliersAt = now;
               setStatus('Tracking');
             } else {
               Hfwd?.delete();
@@ -437,6 +442,8 @@ export function TactileExplorer({
       st.descTpl?.delete(); st.kpTpl?.delete();
       st.sift?.delete(); st.bf?.delete();
       st.Hfwd = st.Hinv = st.Hcs = st.descTpl = st.kpTpl = st.sift = st.bf = null;
+      st.bestInliers = 0;
+      st.bestInliersAt = 0;
       st.oefX = makeOneEuroFilter();
       st.oefY = makeOneEuroFilter();
     };
