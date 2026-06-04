@@ -68,6 +68,8 @@ function App() {
   const [showExplorer, setShowExplorer] = useState(false);
   const [showAudiom, setShowAudiom] = useState(false);
   const fingerCoordRef = useRef(null);
+  const pinGridRawRef = useRef(null); // latest Uint8Array grid, read by TactileExplorer each frame
+  const pinGridFractionsRef = useRef(null); // { left, right, top, bottom } fractions of template
   const [groundTruthProbe, setGroundTruthProbe] = useState(null);
   const probeMarkerRef = useRef(null);
   const probeClickRef = useRef(null);
@@ -99,6 +101,41 @@ function App() {
   useEffect(() => { routeStateRef.current = routeState; }, [routeState]);
   useEffect(() => { imageryRef.current = imagery; }, [imagery]);
   useEffect(() => { selectedImageIdRef.current = selectedImageId; }, [selectedImageId]);
+
+  // Derive pin-grid corner fractions from brailledoodle_corners.json + template dimensions.
+  // These shrink the full-device bbox down to just the pin area for rasterization.
+  useEffect(() => {
+    Promise.all([
+      fetch('/brailledoodle_corners.json').then((r) => r.json()),
+      new Promise((resolve) => {
+        const img = new Image();
+        img.onload  = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+        img.onerror = () => resolve(null);
+        img.src = '/braille.png';
+      }),
+    ]).then(([cornersData, dims]) => {
+      if (!cornersData || !dims) return;
+      const corners = Object.values(cornersData)[0];
+      if (!corners || corners.length < 4) return;
+      const [tl, tr, br, bl] = corners;
+      pinGridFractionsRef.current = {
+        left:   Math.min(tl[0], bl[0]) / dims.w,
+        right:  Math.max(tr[0], br[0]) / dims.w,
+        top:    Math.min(tl[1], tr[1]) / dims.h,
+        bottom: Math.max(bl[1], br[1]) / dims.h,
+      };
+    }).catch(() => {});
+  }, []);
+
+  // Hide Mapbox pin layers when explorer is active — the overlay canvas draws them instead
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current) return;
+    const vis = showExplorer ? 'none' : 'visible';
+    ['pin-grid-up', 'pin-grid-down', 'pin-grid-mask-fill', 'pin-grid-outline'].forEach((id) => {
+      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis);
+    });
+  }, [showExplorer]);
 
   // Ground-truth probe: when explorer is active, clicks drop a reference marker
   useEffect(() => {
@@ -658,11 +695,15 @@ function App() {
         return;
       }
 
-      const bbox = computeScaleBBox(map, pinScale, bboxPadding);
-      setPinBbox(bbox);
-      const roads = queryRoadFeatures(map, bbox);
-      const grid = rasterizeRoads(roads, bbox);
-      const { pinGeoJSON, maskGeoJSON } = pinGridToGeoJSON(grid, bbox);
+      const fullBbox = computeScaleBBox(map, pinScale, bboxPadding);
+      const pinBboxForRaster = pinGridFractionsRef.current
+        ? shrinkBboxToGrid(fullBbox, pinGridFractionsRef.current)
+        : fullBbox;
+      setPinBbox(pinBboxForRaster); // TactileExplorer warps to pin area only
+      const roads = queryRoadFeatures(map, pinBboxForRaster);
+      const grid = rasterizeRoads(roads, pinBboxForRaster);
+      pinGridRawRef.current = grid;
+      const { pinGeoJSON, maskGeoJSON } = pinGridToGeoJSON(grid, pinBboxForRaster);
 
       pinGridDataRef.current = pinGeoJSON;
       pinGridMaskRef.current = maskGeoJSON;
@@ -1232,6 +1273,7 @@ function App() {
             mapRef={mapRef}
             mapLoadedRef={mapLoadedRef}
             templateUrl="/braille.png"
+            pinGridRef={pinGridRawRef}
             onCoord={(coord) => { fingerCoordRef.current = coord; }}
             groundTruthProbe={groundTruthProbe}
           />
@@ -2253,6 +2295,18 @@ function computeEntrancePoint(image, bearing, buildingFeature) {
   }
 
   return best;
+}
+
+function shrinkBboxToGrid([minLng, minLat, maxLng, maxLat], { left, right, top, bottom }) {
+  const dLng = maxLng - minLng;
+  const dLat = maxLat - minLat;
+  // Image y=0 is north (maxLat), y=1 is south (minLat) — invert for lat.
+  return [
+    minLng + left   * dLng,
+    maxLat - bottom * dLat,
+    minLng + right  * dLng,
+    maxLat - top    * dLat,
+  ];
 }
 
 function routeMessage(code) {

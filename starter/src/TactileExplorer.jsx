@@ -28,16 +28,22 @@ function waitForOpenCV() {
  * Future: mask to outer border strip only so inner road changes don't
  * affect detection stability.
  */
+const DEVICE_ROWS = 31;
+const DEVICE_COLS = 43;
+
 export function TactileExplorer({
   bbox,
   mapRef,
   mapLoadedRef,
   templateUrl = '/braille.png',
+  pinGridRef,
   onCoord,
   groundTruthProbe,
 }) {
   const videoRef   = useRef(null);
   const offRef     = useRef(document.createElement('canvas')); // clean frame for ORB
+  const tplPinPosRef  = useRef(null); // Float32Array of template-space (x,y) for each pin, row-major
+  const tplCornersRef = useRef(null); // [[x,y]×4] calibrated corners in template pixels (TL,TR,BR,BL)
   const overlayRef = useRef(null);
   const debugRef   = useRef(null);
   const runningRef = useRef(false);
@@ -60,6 +66,31 @@ export function TactileExplorer({
   const [status, setStatus]   = useState('Initializing…');
   const [coord, setCoord]     = useState(null);
   const [debugInfo, setDebugInfo] = useState({ good: 0, inliers: 0 });
+
+  // Load calibrated corner positions from brailledoodle_corners.json and
+  // precompute template-space (x, y) for every pin via bilinear interpolation.
+  useEffect(() => {
+    fetch('/brailledoodle_corners.json')
+      .then((r) => r.json())
+      .then((data) => {
+        const corners = Object.values(data)[0];
+        if (!corners || corners.length < 4) return;
+        tplCornersRef.current = corners; // store raw [TL,TR,BR,BL] pixel coords
+        const [tl, tr, br, bl] = corners;
+        const arr = new Float32Array(DEVICE_ROWS * DEVICE_COLS * 2);
+        for (let row = 0; row < DEVICE_ROWS; row++) {
+          const v = row / (DEVICE_ROWS - 1);
+          for (let col = 0; col < DEVICE_COLS; col++) {
+            const u = col / (DEVICE_COLS - 1);
+            const idx = (row * DEVICE_COLS + col) * 2;
+            arr[idx]     = (1-u)*(1-v)*tl[0] + u*(1-v)*tr[0] + u*v*br[0] + (1-u)*v*bl[0];
+            arr[idx + 1] = (1-u)*(1-v)*tl[1] + u*(1-v)*tr[1] + u*v*br[1] + (1-u)*v*bl[1];
+          }
+        }
+        tplPinPosRef.current = arr;
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const st = s.current;
@@ -232,45 +263,67 @@ export function TactileExplorer({
 
       if (st.Hfwd && !st.Hfwd.empty() && map && mapLoadedRef?.current && bb) {
         const [minLng, minLat, maxLng, maxLat] = bb;
-        // Screen positions of the four bbox corners
         const tl = map.project([minLng, maxLat]);
         const tr = map.project([maxLng, maxLat]);
         const br = map.project([maxLng, minLat]);
         const bl = map.project([minLng, minLat]);
 
-        // Two-pass warp — avoids matrix composition (cv.gemm is unreliable here).
-        // Pass 1: camera frame → template space via Hinv
-        const frameMat   = cv.imread(off);
-        const tplAligned = new cv.Mat();
-        cv.warpPerspective(
-          frameMat, tplAligned, st.Hinv,
-          new cv.Size(st.tplW, st.tplH),
-          cv.INTER_LINEAR,
-          cv.BORDER_CONSTANT,
-          new cv.Scalar(0, 0, 0, 0),
-        );
-        frameMat.delete();
+        const tc = tplCornersRef.current;
+        const tcArr = tc
+          ? [tc[0][0], tc[0][1], tc[1][0], tc[1][1], tc[2][0], tc[2][1], tc[3][0], tc[3][1]]
+          : [0, 0, st.tplW, 0, st.tplW, st.tplH, 0, st.tplH];
+        const scrArr = [tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y];
 
-        // Pass 2: template space → screen via 4-point exact transform
-        const tplPts = cv.matFromArray(4, 1, cv.CV_32FC2,
-          [0, 0, st.tplW, 0, st.tplW, st.tplH, 0, st.tplH]);
-        const scrPts = cv.matFromArray(4, 1, cv.CV_32FC2,
-          [tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y]);
-        const H_tpl_to_scr = cv.getPerspectiveTransform(tplPts, scrPts);
-        tplPts.delete(); scrPts.delete();
+        // Project tc corners through Hfwd → their positions in the camera frame,
+        // then warp directly from camera to screen in one pass.
+        const tplPtsMat = cv.matFromArray(4, 1, cv.CV_32FC2, tcArr);
+        const camPtsMat = new cv.Mat();
+        cv.perspectiveTransform(tplPtsMat, camPtsMat, st.Hfwd);
+        tplPtsMat.delete();
 
+        const scrPtsMat = cv.matFromArray(4, 1, cv.CV_32FC2, scrArr);
+        const H_cam_to_scr = cv.getPerspectiveTransform(camPtsMat, scrPtsMat);
+        camPtsMat.delete(); scrPtsMat.delete();
+
+        const frameMat = cv.imread(off);
         const warped = new cv.Mat();
-        cv.warpPerspective(
-          tplAligned, warped, H_tpl_to_scr,
-          new cv.Size(screenW, screenH),
-          cv.INTER_LINEAR,
-          cv.BORDER_CONSTANT,
-          new cv.Scalar(0, 0, 0, 0),
-        );
-        tplAligned.delete(); H_tpl_to_scr.delete();
+        cv.warpPerspective(frameMat, warped, H_cam_to_scr,
+          new cv.Size(screenW, screenH), cv.INTER_LINEAR,
+          cv.BORDER_CONSTANT, new cv.Scalar(0, 0, 0, 0));
+        frameMat.delete(); H_cam_to_scr.delete();
 
         cv.imshow(overlay, warped);
         warped.delete();
+
+        // Draw pin dots — project calibrated template positions through
+        // H_tpl_to_scr (tc corners → screen) so dots align with physical holes.
+        const tplPinPos = tplPinPosRef.current;
+        const pinGrid   = pinGridRef?.current;
+        if (tplPinPos && pinGrid) {
+          const tplPtsMat2 = cv.matFromArray(4, 1, cv.CV_32FC2, tcArr);
+          const scrPtsMat2 = cv.matFromArray(4, 1, cv.CV_32FC2, scrArr);
+          const H_tpl_to_scr = cv.getPerspectiveTransform(tplPtsMat2, scrPtsMat2);
+          tplPtsMat2.delete(); scrPtsMat2.delete();
+
+          const n      = DEVICE_ROWS * DEVICE_COLS;
+          const srcMat = cv.matFromArray(n, 1, cv.CV_32FC2, tplPinPos);
+          const dstMat = new cv.Mat();
+          cv.perspectiveTransform(srcMat, dstMat, H_tpl_to_scr);
+          srcMat.delete(); H_tpl_to_scr.delete();
+
+          const ctx = overlay.getContext('2d');
+          for (let i = 0; i < n; i++) {
+            const sx = dstMat.data32F[i * 2];
+            const sy = dstMat.data32F[i * 2 + 1];
+            if (sx < -20 || sx > screenW + 20 || sy < -20 || sy > screenH + 20) continue;
+            const up = pinGrid[i] > 0;
+            ctx.beginPath();
+            ctx.arc(sx, sy, up ? 3.5 : 2, 0, Math.PI * 2);
+            ctx.fillStyle = up ? 'rgba(250,204,21,0.95)' : 'rgba(200,200,200,0.18)';
+            ctx.fill();
+          }
+          dstMat.delete();
+        }
       } else {
         // No homography yet — clear overlay
         overlay.width  = screenW;
