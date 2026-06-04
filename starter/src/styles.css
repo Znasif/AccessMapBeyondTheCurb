@@ -818,11 +818,14 @@ code {
   z-index: 40;
   width: 320px;
   height: 420px;
+  min-width: 200px;
+  min-height: 150px;
   display: flex;
   flex-direction: column;
   background: #000;
   border-radius: 10px;
-  overflow: hidden;
+  overflow: auto;
+  resize: both;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 

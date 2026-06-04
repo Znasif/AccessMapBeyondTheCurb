@@ -117,7 +117,7 @@ export function AudiomAvatar({
       'sources=osm',
       `center=${lng.toFixed(6)},${clampedLat.toFixed(6)}`,
       `zoom=${zoom.toFixed(3)}`,
-      'showVisualMap=false',
+      'showVisualMap=true',
       'showHeading=false',
       `allowedOrigins=${encodeURIComponent(window.location.origin)}`,
     ].join('&');

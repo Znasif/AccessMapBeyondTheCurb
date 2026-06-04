@@ -58,6 +58,7 @@ export function TactileExplorer({
     tplH: 0,
     Hfwd: null,       // template → camera frame
     Hinv: null,       // camera frame → template
+    Hcs:  null,       // camera frame → screen (reused by finger dot each frame)
     tick: 0,
   });
   const bboxRef = useRef(bbox);
@@ -290,7 +291,9 @@ export function TactileExplorer({
         cv.warpPerspective(frameMat, warped, H_cam_to_scr,
           new cv.Size(screenW, screenH), cv.INTER_LINEAR,
           cv.BORDER_CONSTANT, new cv.Scalar(0, 0, 0, 0));
-        frameMat.delete(); H_cam_to_scr.delete();
+        frameMat.delete();
+        st.Hcs?.delete();
+        st.Hcs = H_cam_to_scr; // kept alive for finger dot this frame
 
         cv.imshow(overlay, warped);
         warped.delete();
@@ -331,34 +334,32 @@ export function TactileExplorer({
         overlay.getContext('2d').clearRect(0, 0, screenW, screenH);
       }
 
-      // ── Finger dot at map-projected position ───────────────────────
-      if (fx !== null && st.Hinv && !st.Hinv.empty() && map && mapLoadedRef?.current && bb) {
-        const [minLng, minLat, maxLng, maxLat] = bb;
+      // ── Finger dot — project camera position directly to screen ──────
+      if (fx !== null && st.Hcs && !st.Hcs.empty()) {
         const src = cv.matFromArray(1, 1, cv.CV_32FC2, [fx, fy]);
         const dst = new cv.Mat();
-        cv.perspectiveTransform(src, dst, st.Hinv);
-        const tx = dst.data32F[0], ty = dst.data32F[1];
+        cv.perspectiveTransform(src, dst, st.Hcs);
+        const sx = dst.data32F[0], sy = dst.data32F[1];
         src.delete(); dst.delete();
 
-        const nx = tx / st.tplW, ny = ty / st.tplH;
-        if (nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1) {
-          const lng = minLng + nx * (maxLng - minLng);
-          const lat = maxLat - ny * (maxLat - minLat);
-          const pt  = map.project([lng, lat]);
-
+        // Only draw if the fingertip falls inside the warped pin region
+        if (sx >= 0 && sx <= screenW && sy >= 0 && sy <= screenH) {
           const ctx = overlay.getContext('2d');
           ctx.beginPath();
-          ctx.arc(pt.x, pt.y, 10, 0, Math.PI * 2);
+          ctx.arc(sx, sy, 10, 0, Math.PI * 2);
           ctx.fillStyle   = 'rgba(250, 204, 21, 0.9)';
           ctx.strokeStyle = '#000';
           ctx.lineWidth   = 2;
           ctx.fill();
           ctx.stroke();
 
-          const newCoord = { lng, lat };
-          setCoord(newCoord);
-          onCoord?.(newCoord);
-          return requestAnimationFrame(loop);
+          if (map && mapLoadedRef?.current) {
+            const { lng, lat } = map.unproject([sx, sy]);
+            const newCoord = { lng, lat };
+            setCoord(newCoord);
+            onCoord?.(newCoord);
+            return requestAnimationFrame(loop);
+          }
         }
       }
 
@@ -408,10 +409,10 @@ export function TactileExplorer({
       cancelled = true;
       runningRef.current = false;
       videoRef.current?.srcObject?.getTracks()?.forEach(t => t.stop());
-      st.Hfwd?.delete(); st.Hinv?.delete();
+      st.Hfwd?.delete(); st.Hinv?.delete(); st.Hcs?.delete();
       st.descTpl?.delete(); st.kpTpl?.delete();
       st.sift?.delete(); st.bf?.delete();
-      st.Hfwd = st.Hinv = st.descTpl = st.kpTpl = st.sift = st.bf = null;
+      st.Hfwd = st.Hinv = st.Hcs = st.descTpl = st.kpTpl = st.sift = st.bf = null;
     };
   }, [templateUrl]);
 

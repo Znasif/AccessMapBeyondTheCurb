@@ -1113,14 +1113,16 @@ function App() {
                 value={pinScale}
                 onChange={setPinScale}
               />
-              <SliderField
-                label={`Grid padding: ${Math.round(bboxPadding * 100)}%`}
-                min={0}
-                max={0.5}
-                step={0.05}
-                value={bboxPadding}
-                onChange={setBboxPadding}
-              />
+              {!showExplorer && (
+                <SliderField
+                  label={`Grid padding: ${Math.round(bboxPadding * 100)}%`}
+                  min={0}
+                  max={0.5}
+                  step={0.05}
+                  value={bboxPadding}
+                  onChange={setBboxPadding}
+                />
+              )}
               <label className="switch-row" style={{ marginBottom: 0 }}>
                 <input
                   type="checkbox"
