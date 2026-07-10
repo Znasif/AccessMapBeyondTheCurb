@@ -75,12 +75,9 @@ function bboxToView(bbox) {
  * - `coordRef`: ref holding the latest finger coordinate { lng, lat } or null.
  * - The avatar is updated via the PostMessage API, throttled to `throttleMs`.
  *
- * Movement thresholds are fractions of the bbox span so jitter suppression
- * stays proportional across zoom levels:
- * - `minMoveFrac`: deadband — ignore moves smaller than this fraction of the
- *   bbox span from the last position we sent.
- * - `settleFrac`: hold off announcements while the finger is still sweeping
- *   faster than this fraction per tick.
+ * `minMoveFrac`: deadband — ignore moves smaller than this fraction of the
+ * bbox span from the last sent position. Jitter suppression is handled
+ * upstream by the One Euro Filter in TactileExplorer.
  */
 export function AudiomAvatar({
   bbox,
@@ -156,7 +153,6 @@ export function AudiomAvatar({
       const coord = coordRef?.current;
       if (!iframe || !readyRef.current || !coord
         || !Number.isFinite(coord.lng) || !Number.isFinite(coord.lat)) {
-        prevTickRef.current = coord || null;
         return;
       }
 
