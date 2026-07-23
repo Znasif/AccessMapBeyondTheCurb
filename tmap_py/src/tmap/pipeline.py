@@ -11,6 +11,7 @@ from .geocoder import geocode
 from .geometry import BoundingBox, CoordTransformer
 from .legend import build_legend
 from .osm_fetcher import fetch
+from .raster import render_pin_display
 from .svg_builder import build_svg
 
 
@@ -23,6 +24,8 @@ def generate(
     include_pois: bool = False,
     include_railways: bool = False,
     include_pathways: bool = False,
+    pin_render: bool = False,
+    pin_svg: bool = False,
 ) -> dict[str, Path]:
     """
     Full pipeline: address → four SVG files (print map, tactile map,
@@ -106,6 +109,25 @@ def generate(
     tactile_svg.save(paths["tactile_map"])
     print_legend.saveas(str(paths["print_legend"]))
     tactile_legend.saveas(str(paths["tactile_legend"]))
+
+    if pin_render:
+        pin_path = output_dir / f"{safe}_pins.png"
+        paths["pin_display"] = pin_path
+        print("Rendering pin display PNG…")
+        render_pin_display(paths["tactile_map"], pin_path)
+
+    if pin_svg:
+        from .brailledoodle import rasterize_roads, export_pin_svg
+        pin_svg_path = output_dir / f"{safe}_pin_overlay.svg"
+        paths["pin_svg"] = pin_svg_path
+        print("Rasterizing pin grid for SVG overlay…")
+        pin_grid, attr_grid, index_to_name = rasterize_roads(features.roads, transformer)
+        export_pin_svg(
+            pin_grid, attr_grid, index_to_name,
+            transformer,
+            paths["tactile_map"],
+            pin_svg_path,
+        )
 
     print("\nSaved:")
     for k, p in paths.items():

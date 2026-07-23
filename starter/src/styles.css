@@ -795,13 +795,76 @@ code {
   box-shadow: 0 4px 20px rgba(0,0,0,0.5);
 }
 
+.tactile-controls-panel {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+}
+
+/* Action button styling */
+.tactile-fix-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(15, 23, 42, 0.9);
+  backdrop-filter: blur(8px);
+  color: #f8fafc;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  transition: all 0.15s ease;
+}
+
+.tactile-fix-btn:hover {
+  background: #334155;
+}
+
+.tactile-fix-btn.fixed {
+  background: #eab308;
+  color: #0f172a;
+  border-color: #fde047;
+  font-weight: 700;
+}
+
+.tactile-fix-btn.fixed:hover {
+  background: #facc15;
+}
+
 .tactile-debug-header {
-  padding: 5px 10px;
+  padding: 6px 10px;
   background: #1e293b;
   color: #94a3b8;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tactile-debug-fix-btn {
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #334155;
+  color: #fff;
+  cursor: pointer;
+}
+
+.tactile-debug-fix-btn.fixed {
+  background: #eab308;
+  color: #000;
+  border-color: #facc15;
 }
 
 .tactile-debug-canvas {

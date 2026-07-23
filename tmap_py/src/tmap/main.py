@@ -30,7 +30,7 @@ def main() -> None:
         help=f"Map scale 1:N — choices: {_SCALES} (default: 5000)",
     )
     parser.add_argument(
-        "--paper", default="8.5x11", choices=list(_PAPERS),
+        "--paper", default="11x8.5", choices=list(_PAPERS),
         help="Paper size in inches (default: 8.5x11)",
     )
     parser.add_argument(
@@ -44,6 +44,14 @@ def main() -> None:
     parser.add_argument("--pois",     action="store_true", help="Include buildings, parks, water")
     parser.add_argument("--railways", action="store_true", help="Include railways")
     parser.add_argument("--pathways", action="store_true", help="Include footways and paths")
+    parser.add_argument(
+        "--pins", action="store_true",
+        help="Also render a pin-display PNG (Braille embosser view of the tactile map)",
+    )
+    parser.add_argument(
+        "--pin-svg", action="store_true",
+        help="Overlay pin-grid circles on the tactile SVG (coloured by street, for QA)",
+    )
     args = parser.parse_args()
 
     try:
@@ -56,6 +64,8 @@ def main() -> None:
             include_pois=args.pois,
             include_railways=args.railways,
             include_pathways=args.pathways,
+            pin_render=args.pins,
+            pin_svg=args.pin_svg,
         )
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)

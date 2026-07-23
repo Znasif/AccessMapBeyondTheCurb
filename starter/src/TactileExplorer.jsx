@@ -92,6 +92,34 @@ export function TactileExplorer({
   const [status, setStatus]   = useState('Initializing…');
   const [coord, setCoord]     = useState(null);
   const [debugInfo, setDebugInfo] = useState({ good: 0, inliers: 0 });
+  const [isFixed, setIsFixed] = useState(false);
+  const isFixedRef = useRef(false);
+
+  const toggleFixed = (val) => {
+    const nextVal = typeof val === 'boolean' ? val : !isFixedRef.current;
+    isFixedRef.current = nextVal;
+    setIsFixed(nextVal);
+    if (s.current.Hfwd && !s.current.Hfwd.empty()) {
+      setStatus(nextVal ? 'Tracking (Fixed)' : 'Tracking');
+    }
+  };
+
+  // Keyboard mapping: Semicolon (;), F8, or Alt+H (avoids Audiom & screen reader conflicts)
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+      const isSemicolon = e.key === ';' || e.code === 'Semicolon';
+      const isF8 = e.code === 'F8' || e.key === 'F8';
+      const isAltH = e.altKey && (e.key === 'h' || e.key === 'H');
+
+      if (isSemicolon || isF8 || isAltH) {
+        e.preventDefault();
+        toggleFixed();
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Load calibrated corner positions from brailledoodle_corners.json and
   // precompute template-space (x, y) for every pin via bilinear interpolation.
@@ -229,7 +257,7 @@ export function TactileExplorer({
 
       // ── SIFT + homography (every 6 frames) ─────────────────────────
       st.tick++;
-      if (st.tick % 6 === 0 && st.descTpl?.rows > 0) {
+      if (!isFixedRef.current && st.tick % 6 === 0 && st.descTpl?.rows > 0) {
         const frameMat  = cv.imread(off);
         const frameGray = new cv.Mat();
         cv.cvtColor(frameMat, frameGray, cv.COLOR_RGBA2GRAY);
@@ -276,7 +304,7 @@ export function TactileExplorer({
               cv.invert(Hfwd, st.Hinv, cv.DECOMP_SVD);
               st.bestInliers = inliers;
               st.bestInliersAt = now;
-              setStatus('Tracking');
+              setStatus(isFixedRef.current ? 'Tracking (Fixed)' : 'Tracking');
             } else {
               Hfwd?.delete();
             }
@@ -464,10 +492,29 @@ export function TactileExplorer({
       <video ref={videoRef} muted playsInline style={{ display: 'none' }} />
       <canvas ref={overlayRef} className="tactile-map-overlay" />
 
+      {/* Homography controls: Button */}
+      <div className="tactile-controls-panel">
+        <button
+          type="button"
+          className={`tactile-fix-btn ${isFixed ? 'fixed' : ''}`}
+          onClick={() => toggleFixed(!isFixed)}
+          title="Click or press Semicolon (;) to fix current homography"
+        >
+          {isFixed ? '🔓 Unfix Homography [ ; ]' : '🔒 Fix Homography [ ; ]'}
+        </button>
+      </div>
+
       {/* Debug panel — remove once overlay alignment is confirmed */}
       <div className="tactile-debug-panel">
         <div className="tactile-debug-header">
-          {status} &nbsp;·&nbsp; good: {debugInfo.good} &nbsp;·&nbsp; inliers: {debugInfo.inliers}
+          <span>{status} &nbsp;·&nbsp; good: {debugInfo.good} &nbsp;·&nbsp; inliers: {debugInfo.inliers}</span>
+          <button
+            type="button"
+            className={`tactile-debug-fix-btn ${isFixed ? 'fixed' : ''}`}
+            onClick={() => toggleFixed(!isFixed)}
+          >
+            {isFixed ? 'Unfix' : 'Fix'}
+          </button>
         </div>
         <canvas ref={debugRef} className="tactile-debug-canvas" />
       </div>
@@ -499,7 +546,7 @@ export function TactileExplorer({
           </div>
         </div>
       )}
-      {status !== 'Tracking' && (
+      {!status.startsWith('Tracking') && (
         <div className="tactile-status-hud">{status}</div>
       )}
     </>
