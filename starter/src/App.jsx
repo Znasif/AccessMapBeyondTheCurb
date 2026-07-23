@@ -26,6 +26,35 @@ const DEFAULT_PREFS = {
   avoidBarriers: true,
 };
 
+function clipRoadsToBBox(roads, bbox) {
+  if (!roads || !bbox) return { type: 'FeatureCollection', features: [] };
+  const [minLng, minLat, maxLng, maxLat] = bbox;
+  const features = [];
+
+  for (const f of roads) {
+    if (!f.geometry) continue;
+    const gType = f.geometry.type;
+    const coordsList = gType === 'LineString' ? [f.geometry.coordinates]
+                     : gType === 'MultiLineString' ? f.geometry.coordinates
+                     : [];
+
+    for (const coords of coordsList) {
+      if (!coords || coords.length < 2) continue;
+      const clipped = coords.filter(([lng, lat]) =>
+        lng >= minLng && lng <= maxLng && lat >= minLat && lat <= maxLat
+      );
+      if (clipped.length >= 2) {
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: clipped },
+          properties: {},
+        });
+      }
+    }
+  }
+  return { type: 'FeatureCollection', features };
+}
+
 function App() {
   const mapboxToken = (import.meta.env.VITE_MAPBOX_TOKEN || '').trim();
   const mapillaryToken = (import.meta.env.VITE_MAPILLARY_TOKEN || '').trim();
@@ -180,7 +209,7 @@ function App() {
 
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
-      style: TACTILE_STYLE,
+      style: 'mapbox://styles/mapbox/streets-v12',
       center: [GH_HQ.lng, GH_HQ.lat],
       zoom: GH_HQ.zoom,
       attributionControl: true,
@@ -221,11 +250,28 @@ function App() {
         source: 'pin-grid-mask',
         paint: { 'fill-color': '#ffffff', 'fill-opacity': 0.95 },
       });
+
+      m.addSource('tactile-box-roads', { type: 'geojson', data: EMPTY_GEOJSON });
+      m.addLayer({
+        id: 'tactile-box-roads-layer',
+        type: 'line',
+        source: 'tactile-box-roads',
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+        },
+        paint: {
+          'line-color': '#334155',
+          'line-width': 3.5,
+          'line-opacity': 0.9,
+        },
+      });
+
       m.addLayer({
         id: 'pin-grid-outline',
         type: 'line',
         source: 'pin-grid-mask',
-        paint: { 'line-color': '#414042', 'line-width': 1.5, 'line-opacity': 0.6 },
+        paint: { 'line-color': '#0f172a', 'line-width': 2.5, 'line-opacity': 0.9 },
       });
 
       m.addSource('pin-grid-pins', { type: 'geojson', data: EMPTY_GEOJSON });
@@ -235,11 +281,11 @@ function App() {
         source: 'pin-grid-pins',
         filter: ['==', ['get', 'up'], false],
         paint: {
-          'circle-radius': 3,
-          'circle-color': '#d2d2d2',
+          'circle-radius': 2.5,
+          'circle-color': '#cbd5e1',
           'circle-stroke-width': 0.5,
-          'circle-stroke-color': '#b4b4b4',
-          'circle-opacity': 0.3,
+          'circle-stroke-color': '#94a3b8',
+          'circle-opacity': 0.4,
         },
       });
       m.addLayer({
@@ -248,10 +294,10 @@ function App() {
         source: 'pin-grid-pins',
         filter: ['==', ['get', 'up'], true],
         paint: {
-          'circle-radius': 3,
-          'circle-color': '#1e1e1e',
-          'circle-stroke-width': 0.5,
-          'circle-stroke-color': '#b4b4b4',
+          'circle-radius': 4,
+          'circle-color': '#0f172a',
+          'circle-stroke-width': 1,
+          'circle-stroke-color': '#facc15',
           'circle-opacity': 0.95,
         },
       });
@@ -516,40 +562,12 @@ function App() {
     const map = mapRef.current;
     if (!map || !mapLoadedRef.current) return;
 
-    const newStyle = showTactile ? TACTILE_STYLE : 'mapbox://styles/mapbox/streets-v12';
-    mapLoadedRef.current = false;
-    map.setStyle(newStyle);
-
-    map.once('style.load', () => {
-      addCustomLayersRef.current(map);
-      if (showTactile) {
-        map.setLayoutProperty('buildings-fill', 'visibility', 'none');
-        map.setLayoutProperty('buildings-outline', 'visibility', 'none');
-      }
-      mapLoadedRef.current = true;
-
-      const rs = routeStateRef.current;
-      map.getSource('route')?.setData(toRouteGeoJson(rs.route));
-      map.getSource('mapillary-lookup-points')?.setData(
-        mapillaryToken ? toMapillaryLookupPointGeoJson(rs.route) : EMPTY_GEOJSON,
-      );
-      const im = imageryRef.current;
-      const sid = selectedImageIdRef.current;
-      map.getSource('origin-images')?.setData(toImageGeoJson(im.origin, sid));
-      map.getSource('destination-images')?.setData(toImageGeoJson(im.destination, sid));
-      map.getSource('entrance-line')?.setData(entranceLineDataRef.current);
-      map.getSource('proposed-entrances')?.setData(proposedEntranceDataRef.current);
-      map.getSource('origin-buildings')?.setData(originBuildingsDataRef.current);
-      map.getSource('destination-buildings')?.setData(destinationBuildingsDataRef.current);
-      map.getSource('pin-grid-pins')?.setData(pinGridDataRef.current);
-      map.getSource('pin-grid-mask')?.setData(pinGridMaskRef.current);
-      if (!showTactile) {
-        ['pin-grid-mask-fill', 'pin-grid-outline', 'pin-grid-down', 'pin-grid-up'].forEach((id) => {
-          if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
-        });
+    ['pin-grid-mask-fill', 'tactile-box-roads-layer', 'pin-grid-outline', 'pin-grid-down', 'pin-grid-up'].forEach((id) => {
+      if (map.getLayer(id)) {
+        map.setLayoutProperty(id, 'visibility', showTactile ? 'visible' : 'none');
       }
     });
-  }, [showTactile]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [showTactile]);
 
   useEffect(() => {
     mapSelectionHandlerRef.current = async (point) => {
@@ -679,6 +697,7 @@ function App() {
       if (mapLoadedRef.current) {
         map.getSource('pin-grid-pins')?.setData(EMPTY_GEOJSON);
         map.getSource('pin-grid-mask')?.setData(EMPTY_GEOJSON);
+        map.getSource('tactile-box-roads')?.setData(EMPTY_GEOJSON);
       }
       return;
     }
@@ -704,11 +723,13 @@ function App() {
       const grid = rasterizeRoads(roads, pinBboxForRaster);
       pinGridRawRef.current = grid;
       const { pinGeoJSON, maskGeoJSON } = pinGridToGeoJSON(grid, pinBboxForRaster);
+      const roadsGeoJSON = clipRoadsToBBox(roads, pinBboxForRaster);
 
       pinGridDataRef.current = pinGeoJSON;
       pinGridMaskRef.current = maskGeoJSON;
       map.getSource('pin-grid-pins')?.setData(pinGeoJSON);
       map.getSource('pin-grid-mask')?.setData(maskGeoJSON);
+      map.getSource('tactile-box-roads')?.setData(roadsGeoJSON);
     };
 
     // Compute now and on every subsequent pan/zoom stop

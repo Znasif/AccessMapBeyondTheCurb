@@ -307,8 +307,10 @@ export function pinGridToGeoJSON(grid, bbox, cols = DEFAULT_COLS, rows = DEFAULT
 
 /**
  * Query road features from the map, clipped to a geographic bounding box.
- * Uses queryRenderedFeatures (only visible features) instead of
- * querySourceFeatures (all loaded tiles) for much better performance.
+/**
+ * Query road features from Mapbox vector tiles, clipped to a geographic bounding box.
+ * Uses queryRenderedFeatures with sourceLayer 'road' to work seamlessly across
+ * standard Mapbox styles (e.g. streets-v12) as well as custom styles.
  *
  * @param {mapboxgl.Map} map
  * @param {number[]}     [bbox] - [minLng, minLat, maxLng, maxLat]
@@ -326,12 +328,16 @@ export function queryRoadFeatures(map, bbox) {
     const [minLng, minLat, maxLng, maxLat] = bbox;
     const sw = map.project([minLng, minLat]);
     const ne = map.project([maxLng, maxLat]);
-    return map.queryRenderedFeatures(
-      [[Math.min(sw.x, ne.x), Math.min(sw.y, ne.y)],
-       [Math.max(sw.x, ne.x), Math.max(sw.y, ne.y)]],
-      { layers: ['road'], filter },
-    );
+    const bboxScreen = [
+      [Math.min(sw.x, ne.x), Math.min(sw.y, ne.y)],
+      [Math.max(sw.x, ne.x), Math.max(sw.y, ne.y)],
+    ];
+    let features = map.queryRenderedFeatures(bboxScreen, { sourceLayer: 'road', filter });
+    if (!features || !features.length) {
+      features = map.queryRenderedFeatures(bboxScreen, { sourceLayer: 'road' });
+    }
+    return features || [];
   }
 
-  return map.queryRenderedFeatures(undefined, { layers: ['road'], filter });
+  return map.queryRenderedFeatures(undefined, { sourceLayer: 'road', filter });
 }
