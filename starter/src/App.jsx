@@ -1009,6 +1009,12 @@ function App() {
           <p className="subtle">
             Lightweight React starter inspired by the AccessMap left-panel layout.
           </p>
+          <a
+            href="/audiom.html"
+            style={{ display: 'inline-block', marginTop: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: '#2563eb', textDecoration: 'none' }}
+          >
+            Switch to Tactile Audiom Explorer →
+          </a>
         </header>
 
         <section className="panel-section">

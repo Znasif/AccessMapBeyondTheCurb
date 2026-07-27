@@ -42,6 +42,16 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['onnxruntime-web'],
   },
+  build: {
+    rollupOptions: {
+      input: {
+        // Original OSM/routing app
+        main: resolve('index.html'),
+        // Generalized "any Audiom map" tactile explorer (new)
+        audiom: resolve('audiom.html'),
+      },
+    },
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,
