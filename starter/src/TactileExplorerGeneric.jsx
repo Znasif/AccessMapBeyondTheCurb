@@ -440,7 +440,9 @@ export function TactileExplorerGeneric({ bbox, onCoord, cols = 43, rows = 31, hy
           className={`tactile-fix-btn ${isFixed ? 'fixed' : ''}`}
           onClick={toggleFixed}
           disabled={phase !== 'ready'}
-          title="Freeze the current homography (press ; )"
+          title={phase === 'ready'
+            ? 'Freeze the current homography (press ; )'
+            : 'Register the material first — then Fix freezes the homography'}
         >
           {isFixed ? '🔓 Unfix [ ; ]' : '🔒 Fix [ ; ]'}
         </button>
@@ -453,6 +455,14 @@ export function TactileExplorerGeneric({ bbox, onCoord, cols = 43, rows = 31, hy
             {camInfo ? ` · ${camInfo.w}×${camInfo.h} ${camInfo.state}` : ' · no camera yet'}
             &nbsp;·&nbsp; good: {debugInfo.good} &nbsp;·&nbsp; inliers: {debugInfo.inliers}
           </span>
+          <button
+            type="button"
+            className={`tactile-debug-fix-btn ${isFixed ? 'fixed' : ''}`}
+            onClick={toggleFixed}
+            title="Freeze the current homography (press ; )"
+          >
+            {isFixed ? 'Unfix' : 'Fix'}
+          </button>
         </div>
         <canvas ref={debugRef} className="tactile-debug-canvas" />
       </div>

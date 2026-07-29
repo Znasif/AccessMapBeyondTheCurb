@@ -827,6 +827,18 @@ code {
   background: #334155;
 }
 
+/* Stays clearly visible while inactive — "Fix" is disabled until the material
+   has been registered, and an unstyled disabled button reads as missing. */
+.tactile-fix-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  border-style: dashed;
+}
+
+.tactile-fix-btn:disabled:hover {
+  background: rgba(15, 23, 42, 0.9);
+}
+
 .tactile-fix-btn.fixed {
   background: #eab308;
   color: #0f172a;
