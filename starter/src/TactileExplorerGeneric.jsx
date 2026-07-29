@@ -59,7 +59,7 @@ const beep = () => {
  *
  * Props: bbox [minLng,minLat,maxLng,maxLat], onCoord({lng,lat}|null).
  */
-export function TactileExplorerGeneric({ bbox, onCoord }) {
+export function TactileExplorerGeneric({ bbox, onCoord, cols = 43, rows = 31, hysteresis = 0.3 }) {
   const videoRef = useRef(null);
   const offRef = useRef(document.createElement('canvas')); // clean frame for AKAZE
   const debugRef = useRef(null);
@@ -67,6 +67,17 @@ export function TactileExplorerGeneric({ bbox, onCoord }) {
 
   const bboxRef = useRef(bbox);
   useEffect(() => { bboxRef.current = bbox; }, [bbox]);
+
+  // Quantization: the material has a real physical resolution (a fingertip can't
+  // resolve better than one pin), so snap (u,v) to the material's own grid and
+  // only emit when the cell changes. This is what keeps a state-sized map from
+  // firing a new feature announcement on every tremor — One-Euro smooths motion
+  // but cannot fix the map being denser than the sensor. Map-agnostic: the grid
+  // is a property of the material, not of the map.
+  const gridRef = useRef({ cols, rows, hysteresis });
+  useEffect(() => { gridRef.current = { cols, rows, hysteresis }; }, [cols, rows, hysteresis]);
+  const cellRef = useRef(null); // last accepted { x, y }
+  const [cell, setCell] = useState(null);
 
   const phaseRef = useRef('idle');       // 'idle' | 'capturing' | 'ready'
   const cornerIdxRef = useRef(0);
@@ -83,6 +94,8 @@ export function TactileExplorerGeneric({ bbox, onCoord }) {
   });
 
   const [status, setStatus] = useState('Initializing…');
+  const [attempt, setAttempt] = useState(0); // bump to retry camera/model init
+  const [camInfo, setCamInfo] = useState(null);
   const [phase, setPhase] = useState('idle');
   const [coord, setCoord] = useState(null);
   const [debugInfo, setDebugInfo] = useState({ good: 0, inliers: 0 });
@@ -162,13 +175,44 @@ export function TactileExplorerGeneric({ bbox, onCoord }) {
       st.sift = new cv.AKAZE();
       st.bf = new cv.BFMatcher(cv.NORM_HAMMING, false);
 
-      setStatus('Opening camera…');
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: { ideal: 'environment' } },
-      });
+      // First try prefers a rear/environment camera at 720p. Retries fall back
+      // to plain `video: true`, which succeeds on desktops where the constrained
+      // request can return a device that never produces frames.
+      setStatus(attempt === 0 ? 'Opening camera…' : 'Opening camera (any device)…');
+      const constraints = attempt === 0
+        ? { video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: { ideal: 'environment' } } }
+        : { video: true };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
-      videoRef.current.srcObject = stream;
-      await videoRef.current.play();
+      const video = videoRef.current;
+      video.srcObject = stream;
+      await video.play();
+
+      // A camera can open yet deliver no frames (element suspended, or the
+      // device is held by another app). Wait for real dimensions before
+      // claiming success, otherwise the render loop silently no-ops forever.
+      const gotFrames = await new Promise((resolve) => {
+        const t0 = performance.now();
+        const check = () => {
+          if (cancelled) { resolve(false); return; }
+          if (video.videoWidth > 0 && video.videoHeight > 0) { resolve(true); return; }
+          if (performance.now() - t0 > 6000) { resolve(false); return; }
+          requestAnimationFrame(check);
+        };
+        check();
+      });
+      if (cancelled) return;
+
+      const track = stream.getVideoTracks()[0];
+      setCamInfo({
+        w: video.videoWidth, h: video.videoHeight,
+        label: track?.label || 'camera', state: track?.readyState || '?',
+      });
+
+      if (!gotFrames) {
+        setStatus('Camera opened but sent no frames — close other apps using it (e.g. the Camera app), then Retry.');
+        return;
+      }
 
       setStatus('Ready — press “Register material”.');
       runningRef.current = true;
@@ -281,9 +325,30 @@ export function TactileExplorerGeneric({ bbox, onCoord }) {
         const u = p2.data32F[0], v = p2.data32F[1];
         p0.delete(); p1.delete(); p2.delete();
         if (u >= -0.05 && u <= 1.05 && v >= -0.05 && v <= 1.05) {
-          out = uvToLngLat(Math.max(0, Math.min(1, u)), Math.max(0, Math.min(1, v)), bboxRef.current);
+          const cu = Math.max(0, Math.min(1, u));
+          const cv = Math.max(0, Math.min(1, v));
+          const g = gridRef.current;
+          // Continuous cell coordinates, then per-axis hysteresis: keep the
+          // current cell until the finger crosses its boundary by a margin.
+          const fx = cu * g.cols, fy = cv * g.rows;
+          const prev = cellRef.current;
+          const pick = (f, prevIdx, n) => {
+            const idx = Math.max(0, Math.min(n - 1, Math.floor(f)));
+            if (prevIdx == null) return idx;
+            return Math.abs(f - (prevIdx + 0.5)) > 0.5 + g.hysteresis ? idx : prevIdx;
+          };
+          const nx = pick(fx, prev?.x, g.cols);
+          const ny = pick(fy, prev?.y, g.rows);
+          if (!prev || prev.x !== nx || prev.y !== ny) {
+            cellRef.current = { x: nx, y: ny };
+            setCell({ x: nx, y: ny });
+          }
+          // Emit the centre of the snapped cell — stable, repeatable positions.
+          const c = cellRef.current;
+          out = uvToLngLat((c.x + 0.5) / g.cols, (c.y + 0.5) / g.rows, bboxRef.current);
         }
       }
+      if (!out) { cellRef.current = null; setCell(null); }
       setCoord(out); onCoord?.(out);
 
       drawDebug(fx, fy);
@@ -323,7 +388,10 @@ export function TactileExplorerGeneric({ bbox, onCoord }) {
       }
     }
 
-    init().catch((e) => { console.error('[TactileExplorerGeneric]', e); setStatus(`Error: ${e.message}`); });
+    init().catch((e) => {
+      console.error('[TactileExplorerGeneric] init failed:', e);
+      setStatus(`Camera error: ${e.name === 'NotAllowedError' ? 'permission denied' : e.message}`);
+    });
 
     return () => {
       cancelled = true;
@@ -333,15 +401,37 @@ export function TactileExplorerGeneric({ bbox, onCoord }) {
       st.descTpl?.delete(); st.kpTpl?.delete(); st.sift?.delete(); st.bf?.delete();
       st.Hfwd = st.Hinv = st.HsnapToUv = st.descTpl = st.kpTpl = st.sift = st.bf = null;
     };
-  }, []);
+  }, [attempt]);
 
   const progress = phase === 'capturing' ? ` (${cornerIdxRef.current}/4 — ${CORNER_PROMPTS[Math.min(cornerIdxRef.current, 3)]})` : '';
 
   return (
     <>
-      <video ref={videoRef} muted playsInline style={{ display: 'none' }} />
+      {/* NOT display:none — a hidden video element can be suspended by the
+          browser so videoWidth stays 0 and no frames ever reach the canvas.
+          Keep it rendered but effectively invisible. */}
+      <video
+        ref={videoRef}
+        muted
+        playsInline
+        autoPlay
+        style={{
+          position: 'absolute', top: 0, left: 0,
+          width: 2, height: 2, opacity: 0.01,
+          pointerEvents: 'none', zIndex: 0,
+        }}
+      />
 
       <div className="tactile-controls-panel">
+        {/Camera error|no frames/.test(status) && (
+          <button
+            type="button"
+            className="tactile-fix-btn"
+            onClick={() => { setStatus('Retrying…'); setAttempt((a) => a + 1); }}
+          >
+            ⟳ Retry camera
+          </button>
+        )}
         <button type="button" className="tactile-fix-btn" onClick={startCapture}>
           {phase === 'ready' ? '↻ Re-register [ r ]' : '🎯 Register material [ r ]'}
         </button>
@@ -358,7 +448,11 @@ export function TactileExplorerGeneric({ bbox, onCoord }) {
 
       <div className="tactile-debug-panel">
         <div className="tactile-debug-header">
-          <span>{status}{progress} &nbsp;·&nbsp; good: {debugInfo.good} &nbsp;·&nbsp; inliers: {debugInfo.inliers}</span>
+          <span>
+            {status}{progress}
+            {camInfo ? ` · ${camInfo.w}×${camInfo.h} ${camInfo.state}` : ' · no camera yet'}
+            &nbsp;·&nbsp; good: {debugInfo.good} &nbsp;·&nbsp; inliers: {debugInfo.inliers}
+          </span>
         </div>
         <canvas ref={debugRef} className="tactile-debug-canvas" />
       </div>
@@ -366,6 +460,7 @@ export function TactileExplorerGeneric({ bbox, onCoord }) {
       {coord && (
         <div className="tactile-coord-hud">
           <div>Finger: {coord.lat.toFixed(6)},&thinsp;{coord.lng.toFixed(6)}</div>
+          {cell && <div style={{ fontSize: '0.85em', opacity: 0.8 }}>cell {cell.x},{cell.y} of {cols}×{rows}</div>}
         </div>
       )}
       {!status.startsWith('Tracking') && (

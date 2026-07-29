@@ -125,6 +125,60 @@ export function viewToBbox({ centerLng, centerLat, zoom, width, height }) {
   ];
 }
 
+// ---- Window model -------------------------------------------------------
+// The material is printed at the aspect ratio of the FULL map bbox, so every
+// window (whole map, or any sub-region at any scale) keeps that same aspect and
+// the four touched corners always map to the four bbox corners.
+//
+// Aspect is measured in Web-Mercator, because that is what Audiom renders and
+// therefore what a print of it depicts — not in ground metres.
+
+export function bboxToMerc(bbox) {
+  const [w, s, e, n] = bbox;
+  return { x0: mercX(w), x1: mercX(e), y0: mercY(n), y1: mercY(s) }; // y0 = top
+}
+
+/** Aspect (width/height) of a bbox as rendered — this is the aspect to print at. */
+export function mercAspect(bbox) {
+  const m = bboxToMerc(bbox);
+  return (m.x1 - m.x0) / (m.y1 - m.y0);
+}
+
+/**
+ * A sub-window of `bboxFull` at `fraction` of its size (1 = whole map),
+ * centred on {centerLng, centerLat} and clamped to stay inside the map.
+ * Aspect is inherited from bboxFull by construction.
+ */
+export function subWindow(bboxFull, { fraction = 1, centerLng, centerLat } = {}) {
+  const m = bboxToMerc(bboxFull);
+  const f = Math.max(0.001, Math.min(1, fraction));
+  const w = (m.x1 - m.x0) * f;
+  const h = (m.y1 - m.y0) * f;
+  let cx = Number.isFinite(centerLng) ? mercX(centerLng) : (m.x0 + m.x1) / 2;
+  let cy = Number.isFinite(centerLat) ? mercY(centerLat) : (m.y0 + m.y1) / 2;
+  cx = Math.min(Math.max(cx, m.x0 + w / 2), m.x1 - w / 2);
+  cy = Math.min(Math.max(cy, m.y0 + h / 2), m.y1 - h / 2);
+  return [
+    invMercX(cx - w / 2), invMercY(cy + h / 2),
+    invMercX(cx + w / 2), invMercY(cy - h / 2),
+  ];
+}
+
+/** Zoom that renders a bbox at `widthPx` pixels wide (for the debug view). */
+export function zoomForBbox(bbox, widthPx) {
+  const m = bboxToMerc(bbox);
+  return Math.max(1, Math.min(22, Math.log2(widthPx / (TILE * (m.x1 - m.x0)))));
+}
+
+// Zoom that makes `spanMeters` of ground fill `widthPx` pixels at this latitude.
+// Inverse of viewToBbox, so the two stay consistent (both Web-Mercator).
+export function zoomForSpan({ centerLat, spanMeters, widthPx }) {
+  const R = 6378137; // WGS84 equatorial radius
+  const worldMetres = 2 * Math.PI * R * Math.cos((centerLat * Math.PI) / 180);
+  const z = Math.log2((worldMetres * widthPx) / (TILE * spanMeters));
+  return Math.max(1, Math.min(22, z));
+}
+
 // Approx span in metres of a bbox (used to derive a step-matched deadband).
 export function bboxSpanMeters(bbox) {
   const [minLng, minLat, maxLng, maxLat] = bbox;

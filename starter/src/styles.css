@@ -892,6 +892,22 @@ code {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
+/* Fill the whole map panel, like the Mapbox map does in the OSM view.
+   Sits below the tactile overlays (z-index 10/20/50) so they float on top. */
+.audiom-panel--fill {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 0;
+  resize: none;
+  box-shadow: none;
+  overflow: hidden;
+  z-index: 5;
+}
+
 .audiom-panel--error {
   height: auto;
   padding: 10px 12px;

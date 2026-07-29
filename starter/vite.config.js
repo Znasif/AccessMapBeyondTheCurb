@@ -57,7 +57,10 @@ export default defineConfig({
     port: 5173,
     open: true,
     allowedHosts: true,
-    hmr: { clientPort: 443, protocol: 'wss' },
+    // Only use the tunnel-style HMR socket when actually behind an HTTPS tunnel.
+    // On plain http://localhost:5173 this must stay default or the client tries
+    // wss://localhost and the page silently loses its dev connection.
+    hmr: process.env.VITE_TUNNEL ? { clientPort: 443, protocol: 'wss' } : true,
     proxy: {
       '/accessmap-api': {
         target: 'https://stage.accessmap.app',
