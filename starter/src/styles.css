@@ -795,6 +795,40 @@ code {
   box-shadow: 0 4px 20px rgba(0,0,0,0.5);
 }
 
+/* Rectified camera view overlaid on the Audiom map.
+   Above the embed (z 5), below the debug panels (z 50).
+   pointer-events:none is essential — the map must stay draggable underneath so
+   the user can pan/zoom Audiom into alignment with this fixed rectangle. */
+.tactile-rect-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 15;
+  pointer-events: none;
+  /* No border here — the canvas draws the single green window border itself,
+     so we don't end up with two stacked outlines. */
+}
+
+.tactile-rect-overlay canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Rectified camera view — sits beside the raw camera preview */
+.tactile-rect-panel {
+  position: absolute;
+  bottom: 20px;
+  left: 360px;
+  z-index: 50;
+  width: 320px;
+  background: #000;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
 .tactile-controls-panel {
   position: absolute;
   top: 20px;

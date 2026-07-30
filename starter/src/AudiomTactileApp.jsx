@@ -8,6 +8,18 @@ import { TactileExplorerGeneric } from './TactileExplorerGeneric';
 
 const BASE_PX = 640; // pixel basis for the debug view only
 
+function SliderField({ label, min, max, step, value, onChange }) {
+  return (
+    <label className="slider-field">
+      <span>{label}</span>
+      <input
+        type="range" min={min} max={max} step={step} value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
+    </label>
+  );
+}
+
 export default function AudiomTactileApp() {
   const [sourceInput, setSourceInput] = useState('/maps/d/885');
   const [sources, setSources] = useState('');
@@ -20,8 +32,16 @@ export default function AudiomTactileApp() {
   const [center, setCenter] = useState(null);   // window centre; seeded from avatar start
   const [fraction, setFraction] = useState(1);  // 1 = whole map
   const [cellsAcross, setCellsAcross] = useState(43); // tactile resolution only
+  // Physical size of the material you actually have. If its aspect differs from
+  // the window's, the artwork is letterboxed inside it and the mapping adjusts.
+  const [matW, setMatW] = useState('');
+  const [matH, setMatH] = useState('');
   const [syncView, setSyncView] = useState(false);
   const [syncKey, setSyncKey] = useState(0);
+  const [overlay, setOverlay] = useState(true);
+  const [overlayOpacity, setOverlayOpacity] = useState(0.55);
+  const [overlayPct, setOverlayPct] = useState(60);
+  const [showRectPanel, setShowRectPanel] = useState(false);
 
   const fingerRef = useRef(null);
 
@@ -54,6 +74,16 @@ export default function AudiomTactileApp() {
       zoom: zoomForBbox(bbox, width), width, height,
     };
   }, [bbox, aspect]);
+
+  const materialAspect = useMemo(() => {
+    const w = Number(matW), h = Number(matH);
+    return (w > 0 && h > 0) ? w / h : null;
+  }, [matW, matH]);
+
+  const mismatch = useMemo(() => {
+    if (!materialAspect || !aspect) return null;
+    return materialAspect / aspect - 1;
+  }, [materialAspect, aspect]);
 
   const cellMeters = useMemo(() => {
     if (!bbox) return null;
@@ -160,6 +190,36 @@ export default function AudiomTactileApp() {
               <p className="point-meta">
                 full bounds {fullBbox.map((n) => n.toFixed(4)).join(', ')}
               </p>
+
+              <p className="subtle" style={{ marginTop: '0.5rem' }}>
+                Already have a material? Enter its size to check it against the window.
+              </p>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <label className="slider-field">
+                  <span>Material W</span>
+                  <input type="number" step="0.1" min="0" value={matW}
+                    placeholder="cm" onChange={(e) => setMatW(e.target.value)} />
+                </label>
+                <label className="slider-field">
+                  <span>Material H</span>
+                  <input type="number" step="0.1" min="0" value={matH}
+                    placeholder="cm" onChange={(e) => setMatH(e.target.value)} />
+                </label>
+              </div>
+              {mismatch !== null && (
+                Math.abs(mismatch) <= 0.01 ? (
+                  <p className="point-meta" style={{ color: '#16a34a' }}>
+                    ✓ material matches the window ({(mismatch * 100).toFixed(1)}%)
+                  </p>
+                ) : (
+                  <p className="inline-note">
+                    Material aspect {materialAspect.toFixed(3)} vs window {aspect.toFixed(3)}
+                    &nbsp;({mismatch > 0 ? '+' : ''}{(mismatch * 100).toFixed(1)}%). The artwork is
+                    treated as letterboxed inside the material — point at the <strong>material's</strong>
+                    corners and the dashed box in the rectified view shows the artwork area.
+                  </p>
+                )
+              )}
             </>
           ) : (
             <p className="subtle">
@@ -220,6 +280,45 @@ export default function AudiomTactileApp() {
           </section>
         )}
 
+        <section className="panel-section">
+          <h2>Camera overlay</h2>
+          <p className="subtle">
+            The rectified camera view sits over the map as a fixed rectangle.
+            Pan/zoom Audiom underneath (cursor works through the overlay) until the
+            map lines up with it — that confirms material and window agree.
+          </p>
+          <label className="switch-row">
+            <input type="checkbox" checked={overlay} onChange={(e) => setOverlay(e.target.checked)} />
+            <span>Show overlay on map</span>
+          </label>
+          {overlay && (
+            <>
+              <SliderField
+                label={`Opacity: ${Math.round(overlayOpacity * 100)}%`}
+                min={0.1} max={1} step={0.05}
+                value={overlayOpacity} onChange={setOverlayOpacity}
+              />
+              <SliderField
+                label={`Size: ${overlayPct}% of fitted box (100% = fills the view)`}
+                min={20} max={100} step={1}
+                value={overlayPct} onChange={setOverlayPct}
+              />
+            </>
+          )}
+          <label className="switch-row">
+            <input type="checkbox" checked={showRectPanel}
+              onChange={(e) => setShowRectPanel(e.target.checked)} />
+            <span>Also show rectified side panel (adds cell grid)</span>
+          </label>
+          <p className="subtle" style={{ fontSize: '0.75rem' }}>
+            One box only: <span style={{ color: '#16a34a', fontWeight: 700 }}>green</span> = the Audiom
+            window holding the rectified camera view. Scale/pan Audiom until the map lines up inside it.
+            <span style={{ color: '#ca8a04', fontWeight: 700 }}> Yellow</span> = your finger;
+            <span style={{ color: '#ea580c', fontWeight: 700 }}> orange dashed</span> only appears if
+            the material's aspect differs from the window's.
+          </p>
+        </section>
+
         <section className="panel-section compact">
           <h2>How to use</h2>
           <ol className="entrance-list" style={{ listStyle: 'decimal', paddingLeft: '1.25rem' }}>
@@ -244,6 +343,9 @@ export default function AudiomTactileApp() {
             />
             <TactileExplorerGeneric
               bbox={bbox} cols={cellsAcross} rows={rows}
+              bboxAspect={aspect} materialAspect={materialAspect}
+              overlay={overlay} overlayOpacity={overlayOpacity} overlayPct={overlayPct}
+              showRectPanel={showRectPanel}
               onCoord={(c) => { fingerRef.current = c; }}
             />
           </>

@@ -59,10 +59,22 @@ const beep = () => {
  *
  * Props: bbox [minLng,minLat,maxLng,maxLat], onCoord({lng,lat}|null).
  */
-export function TactileExplorerGeneric({ bbox, onCoord, cols = 43, rows = 31, hysteresis = 0.3 }) {
+export function TactileExplorerGeneric({
+  bbox, onCoord, cols = 43, rows = 31, hysteresis = 0.3,
+  bboxAspect = null, materialAspect = null,
+  overlay = true, overlayOpacity = 0.55, overlayPct = 60, showRectPanel = false,
+}) {
   const videoRef = useRef(null);
   const offRef = useRef(document.createElement('canvas')); // clean frame for AKAZE
   const debugRef = useRef(null);
+  const rectRef = useRef(null);   // rectified ("reverse projection") view
+  const rectOffRef = useRef(document.createElement('canvas')); // warp target, drawn twice
+  const ovRef = useRef(null);     // same rectification, overlaid on the embed
+  const ovWrapRef = useRef(null);
+  const overlayPctRef = useRef(overlayPct);
+  useEffect(() => { overlayPctRef.current = overlayPct; }, [overlayPct]);
+  const [ovSize, setOvSize] = useState(null); // reported px size of the box
+  const ovSizeRef = useRef(null);
   const runningRef = useRef(false);
 
   const bboxRef = useRef(bbox);
@@ -76,6 +88,25 @@ export function TactileExplorerGeneric({ bbox, onCoord, cols = 43, rows = 31, hy
   // is a property of the material, not of the map.
   const gridRef = useRef({ cols, rows, hysteresis });
   useEffect(() => { gridRef.current = { cols, rows, hysteresis }; }, [cols, rows, hysteresis]);
+
+  // Letterbox: if the material's physical aspect differs from the map window's
+  // aspect, the printed artwork occupies only an inscribed sub-rectangle of the
+  // material. Map (u,v) through that sub-rectangle so the four corners you
+  // touched (the material's) still land correctly on the window's corners.
+  const bboxAspectRef = useRef(bboxAspect);
+  useEffect(() => { bboxAspectRef.current = bboxAspect; }, [bboxAspect]);
+
+  const fitRef = useRef({ fx: 1, fy: 1 });
+  useEffect(() => {
+    if (bboxAspect && materialAspect && Number.isFinite(bboxAspect) && Number.isFinite(materialAspect)) {
+      // fx/fy = fraction of the material occupied by the artwork on each axis
+      const fx = materialAspect > bboxAspect ? bboxAspect / materialAspect : 1;
+      const fy = materialAspect > bboxAspect ? 1 : materialAspect / bboxAspect;
+      fitRef.current = { fx, fy };
+    } else {
+      fitRef.current = { fx: 1, fy: 1 };
+    }
+  }, [bboxAspect, materialAspect]);
   const cellRef = useRef(null); // last accepted { x, y }
   const [cell, setCell] = useState(null);
 
@@ -155,6 +186,18 @@ export function TactileExplorerGeneric({ bbox, onCoord, cols = 43, rows = 31, hy
       st.HsnapToUv?.delete();
       st.HsnapToUv = cv.getPerspectiveTransform(srcPx, dstUv);
       srcPx.delete(); dstUv.delete();
+
+      // The snapshot IS the current frame, so snapshot->camera is the identity
+      // right now. Seed it so tracking works the instant registration finishes,
+      // rather than waiting for AKAZE to score 8+ inliers — which may never
+      // happen on a feature-poor material, leaving the tool apparently dead.
+      // NB: built with matFromArray, not cv.Mat.eye — that returns a MatExpr,
+      // whose support in OpenCV.js is partial and can throw when handed to
+      // perspectiveTransform (which would kill the render loop mid-registration).
+      const I = () => cv.matFromArray(3, 3, cv.CV_64F, [1, 0, 0, 0, 1, 0, 0, 0, 1]);
+      st.Hfwd?.delete(); st.Hinv?.delete();
+      st.Hfwd = I();
+      st.Hinv = I();
       st.bestInliers = 0; st.bestInliersAt = 0;
     }
 
@@ -219,7 +262,20 @@ export function TactileExplorerGeneric({ bbox, onCoord, cols = 43, rows = 31, hy
       requestAnimationFrame(loop);
     }
 
+    // Any throw inside a requestAnimationFrame callback silently ends the chain,
+    // which looks exactly like "registration stopped working". Keep the loop
+    // alive and surface the error instead of dying quietly.
     function loop() {
+      try {
+        loopBody();
+      } catch (e) {
+        console.error('[TactileExplorerGeneric] frame failed:', e);
+        setStatus(`Frame error: ${e.message} — press r to re-register`);
+        requestAnimationFrame(loop);
+      }
+    }
+
+    function loopBody() {
       if (!runningRef.current || cancelled) return;
       const video = videoRef.current;
       if (!video) { requestAnimationFrame(loop); return; }
@@ -324,21 +380,30 @@ export function TactileExplorerGeneric({ bbox, onCoord, cols = 43, rows = 31, hy
         cv.perspectiveTransform(p1, p2, st.HsnapToUv);
         const u = p2.data32F[0], v = p2.data32F[1];
         p0.delete(); p1.delete(); p2.delete();
-        if (u >= -0.05 && u <= 1.05 && v >= -0.05 && v <= 1.05) {
-          const cu = Math.max(0, Math.min(1, u));
-          const cv = Math.max(0, Math.min(1, v));
+        // Material (u,v) -> window (u,v): undo the letterbox margins.
+        // Aliased to lbx/lby: naming these fx/fy would shadow the fingertip
+        // fx/fy used above in this same block and throw a TDZ error.
+        const { fx: lbx, fy: lby } = fitRef.current;
+        const wu = (u - (1 - lbx) / 2) / lbx;
+        const wv = (v - (1 - lby) / 2) / lby;
+
+        if (wu >= -0.05 && wu <= 1.05 && wv >= -0.05 && wv <= 1.05) {
+          // NB: don't name these cu/cv — `cv` would shadow the OpenCV namespace
+          // inside this block, and fx/fy would shadow the fingertip above.
+          const su = Math.max(0, Math.min(1, wu));
+          const sv = Math.max(0, Math.min(1, wv));
           const g = gridRef.current;
           // Continuous cell coordinates, then per-axis hysteresis: keep the
           // current cell until the finger crosses its boundary by a margin.
-          const fx = cu * g.cols, fy = cv * g.rows;
+          const gx = su * g.cols, gy = sv * g.rows;
           const prev = cellRef.current;
           const pick = (f, prevIdx, n) => {
             const idx = Math.max(0, Math.min(n - 1, Math.floor(f)));
             if (prevIdx == null) return idx;
             return Math.abs(f - (prevIdx + 0.5)) > 0.5 + g.hysteresis ? idx : prevIdx;
           };
-          const nx = pick(fx, prev?.x, g.cols);
-          const ny = pick(fy, prev?.y, g.rows);
+          const nx = pick(gx, prev?.x, g.cols);
+          const ny = pick(gy, prev?.y, g.rows);
           if (!prev || prev.x !== nx || prev.y !== ny) {
             cellRef.current = { x: nx, y: ny };
             setCell({ x: nx, y: ny });
@@ -352,7 +417,150 @@ export function TactileExplorerGeneric({ bbox, onCoord, cols = 43, rows = 31, hy
       setCoord(out); onCoord?.(out);
 
       drawDebug(fx, fy);
+      drawRectified(fx, fy);
       requestAnimationFrame(loop);
+    }
+
+    /**
+     * Reverse projection: warp the camera's view of the material into a
+     * synthetic rectangle at the WINDOW's aspect ratio — the equivalent of the
+     * OSM build warping onto the Mapbox canvas, but without needing a map.
+     *
+     * How to read it: the rectangle IS the Audiom window. If the printed map
+     * inside it looks stretched, cropped, or inset from the edges, the material
+     * and the window disagree — which is exactly the scaling mismatch that is
+     * otherwise invisible. The dashed box shows the artwork area implied by the
+     * material dimensions you entered.
+     */
+    function drawRectified(fx, fy) {
+      const panel = rectRef.current;
+      const ov = ovRef.current;
+      if (!panel && !ov) return;
+
+      const g = gridRef.current;
+      // GREEN rectangle == the Audiom window, sized by the aspect discovered
+      // from the map's own bounds. Nothing else is drawn in green.
+      const A = bboxAspectRef.current || 1.387;
+      const W = 320, H = Math.max(60, Math.round(W / A));
+      const off = rectOffRef.current;
+
+      const registered = cornerPxRef.current.length >= 4
+        && st.Hfwd && !st.Hfwd.empty() && st.HsnapToUv;
+
+      if (!registered) {
+        if (off.width !== W || off.height !== H) { off.width = W; off.height = H; }
+        const c0 = off.getContext('2d');
+        c0.clearRect(0, 0, W, H);
+        c0.fillStyle = 'rgba(15,23,42,0.5)'; c0.fillRect(0, 0, W, H);
+        c0.textAlign = 'center';
+        c0.fillStyle = '#cbd5e1'; c0.font = '12px sans-serif';
+        c0.fillText('press “Register material”', W / 2, H / 2 - 4);
+        c0.fillStyle = '#94a3b8'; c0.font = '10px sans-serif';
+        c0.fillText('this box = the Audiom window', W / 2, H / 2 + 12);
+      } else {
+        const c = cornerPxRef.current;
+        const snapPts = cv.matFromArray(4, 1, cv.CV_32FC2,
+          [c[0][0], c[0][1], c[1][0], c[1][1], c[2][0], c[2][1], c[3][0], c[3][1]]);
+        const camPts = new cv.Mat();
+        cv.perspectiveTransform(snapPts, camPts, st.Hfwd); // snapshot -> live camera
+        snapPts.delete();
+        const dstPts = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, W, 0, W, H, 0, H]);
+        const Hcr = cv.getPerspectiveTransform(camPts, dstPts);
+        camPts.delete(); dstPts.delete();
+
+        const frame = cv.imread(offRef.current);
+        const warped = new cv.Mat();
+        cv.warpPerspective(frame, warped, Hcr, new cv.Size(W, H), cv.INTER_LINEAR,
+          cv.BORDER_CONSTANT, new cv.Scalar(15, 23, 42, 255));
+        frame.delete(); Hcr.delete();
+        cv.imshow(off, warped);   // warp once, reuse for panel + overlay
+        warped.delete();
+      }
+
+      // Fingertip in window space (computed once, drawn on both surfaces)
+      let uv = null;
+      if (registered && fx !== null && st.Hinv && !st.Hinv.empty()) {
+        const p0 = cv.matFromArray(1, 1, cv.CV_32FC2, [fx, fy]);
+        const p1 = new cv.Mat(); cv.perspectiveTransform(p0, p1, st.Hinv);
+        const p2 = new cv.Mat(); cv.perspectiveTransform(p1, p2, st.HsnapToUv);
+        uv = [p2.data32F[0], p2.data32F[1]];
+        p0.delete(); p1.delete(); p2.delete();
+      }
+
+      const cur = cellRef.current;
+      const { fx: lx, fy: ly } = fitRef.current;
+
+      const paint = (ctx, withGrid) => {
+        ctx.drawImage(off, 0, 0);
+
+        // ORANGE dashed = artwork area implied by the material dimensions
+        if (lx < 0.999 || ly < 0.999) {
+          ctx.strokeStyle = '#f97316'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]);
+          ctx.strokeRect(((1 - lx) / 2) * W, ((1 - ly) / 2) * H, lx * W, ly * H);
+          ctx.setLineDash([]);
+        }
+        if (withGrid) {
+          ctx.strokeStyle = 'rgba(148,163,184,0.25)'; ctx.lineWidth = 1;
+          ctx.beginPath();
+          for (let i = 1; i < g.cols; i++) { const x = (i / g.cols) * W; ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+          for (let j = 1; j < g.rows; j++) { const y = (j / g.rows) * H; ctx.moveTo(0, y); ctx.lineTo(W, y); }
+          ctx.stroke();
+        }
+        // YELLOW = where your finger is
+        if (cur) {
+          ctx.fillStyle = 'rgba(250,204,21,0.35)';
+          ctx.fillRect((cur.x / g.cols) * W, (cur.y / g.rows) * H, W / g.cols, H / g.rows);
+        }
+        if (uv) {
+          ctx.beginPath(); ctx.arc(uv[0] * W, uv[1] * H, 6, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(250,204,21,0.95)'; ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+          ctx.fill(); ctx.stroke();
+        }
+        // GREEN border + label: this is the window
+        ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 2;
+        ctx.strokeRect(1, 1, W - 2, H - 2);
+        ctx.fillStyle = 'rgba(34,197,94,0.9)';
+        ctx.fillRect(1, 1, 132, 14);
+        ctx.fillStyle = '#04210f'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText(`Audiom window ${A.toFixed(3)}`, 5, 11);
+        if (ovSizeRef.current) {
+          ctx.fillStyle = 'rgba(34,197,94,0.9)';
+          ctx.fillRect(W - 92, 1, 91, 14);
+          ctx.fillStyle = '#04210f';
+          ctx.fillText(`${ovSizeRef.current.w}×${ovSizeRef.current.h} px`, W - 88, 11);
+        }
+      };
+
+      if (panel) {
+        if (panel.width !== W || panel.height !== H) { panel.width = W; panel.height = H; }
+        paint(panel.getContext('2d'), true);
+      }
+      if (ov) {
+        if (ov.width !== W || ov.height !== H) { ov.width = W; ov.height = H; }
+        const octx = ov.getContext('2d');
+        octx.clearRect(0, 0, W, H);
+        paint(octx, false); // no grid on the overlay — keeps the map readable
+
+        // Size the box in ACTUAL PIXELS, fitted to the panel. A percentage of
+        // panel width made a portrait window taller than the viewport, so its
+        // extent ran off-screen. At 100% it exactly fits the panel.
+        const wrap = ovWrapRef.current;
+        const parent = wrap?.parentElement;
+        if (wrap && parent) {
+          const pw = parent.clientWidth, ph = parent.clientHeight;
+          if (pw && ph) {
+            const fitW = Math.min(pw - 24, (ph - 24) * A);       // "contain"
+            const boxW = Math.max(120, Math.round(fitW * (overlayPctRef.current / 100)));
+            const boxH = Math.round(boxW / A);
+            if (wrap.style.width !== `${boxW}px`) {
+              wrap.style.width = `${boxW}px`;
+              wrap.style.height = `${boxH}px`;
+              ovSizeRef.current = { w: boxW, h: boxH };
+              setOvSize({ w: boxW, h: boxH });
+            }
+          }
+        }
+      }
     }
 
     // Live camera thumbnail with captured corners + fingertip overlay.
@@ -368,18 +576,15 @@ export function TactileExplorerGeneric({ bbox, onCoord, cols = 43, rows = 31, hy
       const sx = dw / vw, sy = dh / vh;
       ctx.drawImage(off, 0, 0, dw, dh);
 
-      // captured corners already collected (snapshot space == capture-time frame)
-      const corners = cornerPxRef.current;
-      if (corners.length) {
-        ctx.strokeStyle = '#22c55e'; ctx.fillStyle = '#22c55e'; ctx.lineWidth = 2;
-        ctx.beginPath();
-        corners.forEach(([x, y], i) => {
-          const px = x * sx, py = y * sy;
-          i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      // Deliberately no corner quad here — the ONE rectangle in the UI is the
+      // green bounding box on the map. Tracking health is the inliers count.
+      // During capture, show only small ticks for corners already locked in.
+      if (phaseRef.current === 'capturing') {
+        const corners = cornerPxRef.current;
+        ctx.fillStyle = 'rgba(250,204,21,0.9)';
+        corners.forEach(([x, y]) => {
+          ctx.beginPath(); ctx.arc(x * sx, y * sy, 3, 0, Math.PI * 2); ctx.fill();
         });
-        if (corners.length === 4) ctx.closePath();
-        ctx.stroke();
-        corners.forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x * sx, y * sy, 4, 0, Math.PI * 2); ctx.fill(); });
       }
       if (fx !== null) {
         ctx.beginPath(); ctx.arc(fx * sx, fy * sy, 6, 0, Math.PI * 2);
@@ -466,6 +671,36 @@ export function TactileExplorerGeneric({ bbox, onCoord, cols = 43, rows = 31, hy
         </div>
         <canvas ref={debugRef} className="tactile-debug-canvas" />
       </div>
+
+      {/* Same rectification, laid over the Audiom map. pointer-events:none so
+          you can still drag/zoom the map underneath to line them up. */}
+      {overlay && (
+        <div
+          ref={ovWrapRef}
+          className="tactile-rect-overlay"
+          style={{ opacity: overlayOpacity }}
+        >
+          <canvas ref={ovRef} />
+        </div>
+      )}
+
+      {/* Same rectification as a side panel — redundant once the overlay is on,
+          but it adds the quantization grid and stays put while you pan the map. */}
+      {showRectPanel && (
+      <div className="tactile-rect-panel">
+        <div className="tactile-debug-header">
+          <span>
+            rectified → window
+            {bboxAspect ? ` · window ${bboxAspect.toFixed(3)}` : ''}
+            {materialAspect ? ` · material ${materialAspect.toFixed(3)}` : ''}
+            {materialAspect && bboxAspect && Math.abs(materialAspect / bboxAspect - 1) > 0.01
+              ? ` · letterboxed ${(Math.max(1 - fitRef.current.fx, 1 - fitRef.current.fy) * 100).toFixed(0)}%`
+              : ''}
+          </span>
+        </div>
+        <canvas ref={rectRef} className="tactile-debug-canvas" />
+      </div>
+      )}
 
       {coord && (
         <div className="tactile-coord-hud">
