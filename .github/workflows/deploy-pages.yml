@@ -18,9 +18,13 @@
 
 name: Deploy to GitHub Pages
 
+# Only this branch publishes. Note the workflow trigger is a convenience, not a
+# security boundary — workflow_dispatch can still be fired from another branch.
+# The authoritative gate is the github-pages environment's deployment branch
+# policy; see the setup notes above.
 on:
   push:
-    branches: [main, custom_audiom]
+    branches: [custom_audiom]
   workflow_dispatch:
 
 permissions:
@@ -53,6 +57,14 @@ jobs:
 
       - uses: actions/configure-pages@v5
         id: pages
+        with:
+          # Creates the Pages site if none exists, so a fresh clone or fork does
+          # not fail with "Get Pages site failed ... HttpError: Not Found".
+          # NOTE: `enablement` is an input of configure-pages, NOT deploy-pages —
+          # putting it on deploy-pages is silently ignored.
+          # It also cannot convert an existing site from "Deploy from a branch"
+          # to "GitHub Actions"; that switch must be made in Settings > Pages.
+          enablement: true
 
       - name: Build
         env:
