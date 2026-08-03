@@ -1,3 +1,5 @@
+import asset from '../lib/assetUrl';
+
 /** Left panel shell: title, description, and the link to the Audiom explorer. */
 export function Sidebar({ children }) {
   return (
@@ -10,7 +12,7 @@ export function Sidebar({ children }) {
         <p className="subtle">
           Generate a tactile pin grid from the map, then explore it by camera or audio.
         </p>
-        <a className="sidebar-link" href="/audiom.html">
+        <a className="sidebar-link" href={asset('audiom.html')}>
           Switch to Tactile Audiom Explorer →
         </a>
       </header>

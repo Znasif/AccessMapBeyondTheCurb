@@ -5,6 +5,7 @@ import {
 } from './audiom';
 import { AudiomMap } from './AudiomMap';
 import { TactileExplorerGeneric } from './TactileExplorerGeneric';
+import asset from './lib/assetUrl';
 
 const BASE_PX = 640; // pixel basis for the debug view only
 
@@ -141,7 +142,7 @@ export default function AudiomTactileApp() {
             Print the material at the map's aspect ratio, register its four corners,
             then explore the whole map or any part of it at any scale.
           </p>
-          <a href="/index.html" style={{ display: 'inline-block', marginTop: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: '#2563eb', textDecoration: 'none' }}>
+          <a href={asset('index.html')} style={{ display: 'inline-block', marginTop: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: '#2563eb', textDecoration: 'none' }}>
             ← Door-to-Door (OSM) mode
           </a>
         </header>

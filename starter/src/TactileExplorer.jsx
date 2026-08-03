@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import cv from '@techstark/opencv-js';
 import { openCameraStream } from './cameraDevices';
 import { createPointingTracker, pointingHint } from './gestureRecognizer';
+import asset from './lib/assetUrl';
 
 const MEDIAPIPE_WASM =
   'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm';
@@ -58,7 +59,7 @@ export function TactileExplorer({
   bbox,
   mapRef,
   mapLoadedRef,
-  templateUrl = '/braille.png',
+  templateUrl = asset('braille.png'),
   pinGridRef,
   onCoord,
   groundTruthProbe,
@@ -130,7 +131,7 @@ export function TactileExplorer({
   // Load calibrated corner positions from brailledoodle_corners.json and
   // precompute template-space (x, y) for every pin via bilinear interpolation.
   useEffect(() => {
-    fetch('/brailledoodle_corners.json')
+    fetch(asset('brailledoodle_corners.json'))
       .then((r) => r.json())
       .then((data) => {
         const corners = Object.values(data)[0];

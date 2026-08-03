@@ -10,6 +10,7 @@ import { useMapbox, GH_HQ } from './hooks/useMapbox';
 import { usePinGrid } from './hooks/usePinGrid';
 import { featureToPoint, featureToLabel, reverseLookup } from './lib/geocoding';
 import { syncPointMarker } from './lib/mapMarkers';
+import asset from './lib/assetUrl';
 import { TactileExplorer } from './TactileExplorer';
 import { AudiomAvatar } from './AudiomAvatar';
 
@@ -89,12 +90,12 @@ export default function App() {
     let cancelled = false;
 
     Promise.all([
-      fetch('/brailledoodle_corners.json').then((r) => r.json()),
+      fetch(asset('brailledoodle_corners.json')).then((r) => r.json()),
       new Promise((resolve) => {
         const img = new Image();
         img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
         img.onerror = () => resolve(null);
-        img.src = '/braille.png';
+        img.src = asset('braille.png');
       }),
     ])
       .then(([cornersData, dims]) => {
@@ -193,7 +194,7 @@ export default function App() {
             bbox={pinBbox}
             mapRef={mapRef}
             mapLoadedRef={mapLoadedRef}
-            templateUrl="/braille.png"
+            templateUrl={asset('braille.png')}
             pinGridRef={pinGridRawRef}
             onCoord={(coord) => { fingerCoordRef.current = coord; }}
             groundTruthProbe={groundTruthProbe}
