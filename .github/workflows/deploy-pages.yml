@@ -1,0 +1,99 @@
+# Build the `starter` app and publish it to GitHub Pages.
+#
+# This file MUST live at the repository root — GitHub Actions only reads
+# .github/workflows/ from the root, never from a subdirectory. The app itself
+# lives in starter/, hence the working-directory defaults below.
+#
+# Free on PUBLIC repositories: Pages is free and Actions minutes are unmetered.
+# On a PRIVATE repo, Pages needs a paid plan and minutes come from your quota.
+#
+# Setup, once:
+#   1. Settings > Pages > Build and deployment > Source = "GitHub Actions"
+#   2. Settings > Secrets and variables > Actions > add the VITE_* secrets
+#
+# NOTE: Vite inlines every import.meta.env.VITE_* value into the shipped
+# JavaScript. Repository secrets keep them out of the repo, NOT out of the
+# bundle. Restrict the Mapbox token to your Pages origin, and use a
+# domain-restricted Audiom key. See starter/docs/deploy-github-pages.md.
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, custom_audiom]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: starter
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: starter/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - uses: actions/configure-pages@v5
+        id: pages
+
+      - name: Build
+        env:
+          # Project Pages serve from /<repo>/ — configure-pages resolves it.
+          VITE_BASE: ${{ steps.pages.outputs.base_path }}
+          # Public by design; restrict it by URL in the Mapbox dashboard.
+          # The account's DEFAULT public token cannot take URL restrictions —
+          # generate a new one.
+          VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
+          # Ends up in the Audiom iframe query string, so it is visible in the
+          # DOM no matter what. Use a domain-restricted embed key.
+          VITE_AUDIOM_KEY: ${{ secrets.VITE_AUDIOM_KEY }}
+          VITE_AUDIOM_EMBED_URL: ${{ secrets.VITE_AUDIOM_EMBED_URL }}
+        run: npm run build
+
+      - name: Check artifact against Pages limits
+        run: |
+          echo "dist size: $(du -sh dist | cut -f1)"
+          big=$(find dist -type f -size +100M)
+          if [ -n "$big" ]; then
+            echo "::error::Files over the 100MB GitHub Pages limit remain in dist:"
+            echo "$big"
+            exit 1
+          fi
+          bytes=$(du -sb dist | cut -f1)
+          if [ "$bytes" -gt 1073741824 ]; then
+            echo "::error::dist exceeds the 1GB GitHub Pages site limit ($bytes bytes)."
+            exit 1
+          fi
+          echo "Within Pages limits."
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: starter/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,26 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Secrets. Vite inlines VITE_* into the bundle at build time, so anything here
+# ends up readable in the deployed JavaScript. Keep the file out of the repo and
+# supply values through GitHub Actions secrets for deploys.
+.env
+.env.*
+!.env.example
+
+# Oversized assets — GitHub rejects any file over 100 MB, and GitHub Pages will
+# not serve one either. Host these externally and wire them up via env vars:
+#   ca.sanfrancisco.graph.polygons.geojson  (~200 MB) -> VITE_BUILDINGS_URL
+resources/ca.sanfrancisco.graph.polygons.geojson
+
+# Written at runtime by the dev-server middleware in vite.config.js
+resources/entrances.geojson
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

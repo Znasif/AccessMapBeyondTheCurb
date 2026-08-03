@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import cv from '@techstark/opencv-js';
 import { uvToLngLat } from './audiom';
+import { openCameraStream } from './cameraDevices';
+import { createPointingTracker, pointingHint } from './gestureRecognizer';
 
 const MEDIAPIPE_WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm';
 const HAND_MODEL_URL =
@@ -122,9 +124,11 @@ export function TactileExplorerGeneric({
     Hfwd: null, Hinv: null, HsnapToUv: null,
     bestInliers: 0, bestInliersAt: 0, tick: 0,
     oefX: makeOneEuroFilter(), oefY: makeOneEuroFilter(),
+    pointTracker: null, wasPointing: false, lastHint: undefined,
   });
 
   const [status, setStatus] = useState('Initializing…');
+  const [gestureHint, setGestureHint] = useState(null);
   const [attempt, setAttempt] = useState(0); // bump to retry camera/model init
   const [camInfo, setCamInfo] = useState(null);
   const [phase, setPhase] = useState('idle');
@@ -205,9 +209,11 @@ export function TactileExplorerGeneric({
       setStatus('Loading hand model…');
       const { HandLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
       const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM);
+      // numHands: 2 — with 1, a second pointing hand is invisible and the
+      // ambiguity can never be detected. See gestureRecognizer.js.
       st.hl = await HandLandmarker.createFromOptions(vision, {
         baseOptions: { modelAssetPath: HAND_MODEL_URL, delegate: 'GPU' },
-        runningMode: 'VIDEO', numHands: 1,
+        runningMode: 'VIDEO', numHands: 2,
       });
       if (cancelled) return;
 
@@ -218,14 +224,13 @@ export function TactileExplorerGeneric({
       st.sift = new cv.AKAZE();
       st.bf = new cv.BFMatcher(cv.NORM_HAMMING, false);
 
-      // First try prefers a rear/environment camera at 720p. Retries fall back
-      // to plain `video: true`, which succeeds on desktops where the constrained
-      // request can return a device that never produces frames.
+      // Camera choice is Chrome's — its permission prompt lists every input
+      // with a preview. facingMode is applied on mobile only so the desktop
+      // prompt is not biased toward a virtual/headset camera. Retries fall back
+      // to plain `video: true`, which succeeds on desktops where the
+      // constrained request can return a device that never produces frames.
       setStatus(attempt === 0 ? 'Opening camera…' : 'Opening camera (any device)…');
-      const constraints = attempt === 0
-        ? { video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: { ideal: 'environment' } } }
-        : { video: true };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await openCameraStream({ relaxed: attempt > 0 });
       if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
       const video = videoRef.current;
       video.srcObject = stream;
@@ -288,11 +293,35 @@ export function TactileExplorerGeneric({
 
       const now = performance.now();
       const result = st.hl.detectForVideo(video, now);
+
+      // Require an actual pointing gesture, as camio-explorer does. Taking
+      // landmarks[0][8] unconditionally meant a flat palm, a fist, or a hand
+      // reaching across the material all produced a confident cursor — and
+      // during corner capture could lock a dwell that was never a point.
+      st.pointTracker ??= createPointingTracker();
+      const gesture = st.pointTracker.update(result, now);
+
       let fx = null, fy = null;
-      if (result.landmarks?.length) {
-        const tip = result.landmarks[0][8]; // index-finger tip
-        fx = st.oefX(tip.x * vw, now);
-        fy = st.oefY(tip.y * vh, now);
+      if (gesture.pointing && gesture.tip) {
+        // Re-seed the smoothing filters on re-acquisition, otherwise the One
+        // Euro state carries across the gap and the cursor slides in from
+        // wherever the hand last was.
+        if (!st.wasPointing) {
+          st.oefX = makeOneEuroFilter();
+          st.oefY = makeOneEuroFilter();
+        }
+        fx = st.oefX(gesture.tip.x * vw, now);
+        fy = st.oefY(gesture.tip.y * vh, now);
+      }
+      st.wasPointing = gesture.pointing;
+
+      // Speak only on transitions, and only the ambiguous case — announcing
+      // every dropped frame would be unusable.
+      const hint = pointingHint(gesture);
+      if (hint !== st.lastHint) {
+        st.lastHint = hint;
+        setGestureHint(hint);
+        if (gesture.tooManyHandsPointing) speak('Point with only one hand.');
       }
 
       // ── Corner capture ─────────────────────────────────────────────
@@ -659,6 +688,7 @@ export function TactileExplorerGeneric({
             {status}{progress}
             {camInfo ? ` · ${camInfo.w}×${camInfo.h} ${camInfo.state}` : ' · no camera yet'}
             &nbsp;·&nbsp; good: {debugInfo.good} &nbsp;·&nbsp; inliers: {debugInfo.inliers}
+            {gestureHint ? <>&nbsp;·&nbsp;<strong>{gestureHint}</strong></> : null}
           </span>
           <button
             type="button"

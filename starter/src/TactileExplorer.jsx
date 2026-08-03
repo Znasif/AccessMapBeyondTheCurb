@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import cv from '@techstark/opencv-js';
+import { openCameraStream } from './cameraDevices';
+import { createPointingTracker, pointingHint } from './gestureRecognizer';
 
 const MEDIAPIPE_WASM =
   'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm';
@@ -85,11 +87,15 @@ export function TactileExplorer({
     tick: 0,
     oefX: makeOneEuroFilter(),
     oefY: makeOneEuroFilter(),
+    pointTracker: null,
+    wasPointing: false,
+    lastHint: undefined,
   });
   const bboxRef = useRef(bbox);
   useEffect(() => { bboxRef.current = bbox; }, [bbox]);
 
   const [status, setStatus]   = useState('Initializing…');
+  const [gestureHint, setGestureHint] = useState(null);
   const [coord, setCoord]     = useState(null);
   const [debugInfo, setDebugInfo] = useState({ good: 0, inliers: 0 });
   const [isFixed, setIsFixed] = useState(false);
@@ -154,10 +160,12 @@ export function TactileExplorer({
       setStatus('Loading hand model…');
       const { HandLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
       const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM);
+      // numHands: 2 — with 1, a second pointing hand is invisible and the
+      // ambiguity can never be detected. See gestureRecognizer.js.
       st.hl = await HandLandmarker.createFromOptions(vision, {
         baseOptions: { modelAssetPath: HAND_MODEL_URL, delegate: 'GPU' },
         runningMode: 'VIDEO',
-        numHands: 1,
+        numHands: 2,
       });
       if (cancelled) return;
 
@@ -212,14 +220,12 @@ export function TactileExplorer({
       st.bf = new cv.BFMatcher(cv.NORM_HAMMING, false);
       if (cancelled) return;
 
+      // Camera choice is Chrome's — its permission prompt lists every input
+      // with a preview. facingMode is applied on mobile only so the desktop
+      // prompt is not biased toward a virtual/headset camera over the document
+      // cam aimed at the material. See cameraDevices.js.
       setStatus('Opening camera…');
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: { ideal: 'environment' },
-        },
-      });
+      const stream = await openCameraStream();
       if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
@@ -248,11 +254,31 @@ export function TactileExplorer({
       // ── Hand detection ─────────────────────────────────────────────
       const now = performance.now();
       const result = st.hl.detectForVideo(video, now);
+
+      // Require an actual pointing gesture, as camio-explorer does. Taking
+      // landmarks[0][8] unconditionally meant a flat palm, a fist, or a hand
+      // resting on the material all produced a confident cursor.
+      st.pointTracker ??= createPointingTracker();
+      const gesture = st.pointTracker.update(result, now);
+
       let fx = null, fy = null;
-      if (result.landmarks?.length) {
-        const tip = result.landmarks[0][8];
-        fx = st.oefX(tip.x * vw, now);
-        fy = st.oefY(tip.y * vh, now);
+      if (gesture.pointing && gesture.tip) {
+        // Re-seed the smoothing filters on re-acquisition, otherwise the One
+        // Euro state carries across the gap and the cursor slides in from
+        // wherever the hand last was.
+        if (!st.wasPointing) {
+          st.oefX = makeOneEuroFilter();
+          st.oefY = makeOneEuroFilter();
+        }
+        fx = st.oefX(gesture.tip.x * vw, now);
+        fy = st.oefY(gesture.tip.y * vh, now);
+      }
+      st.wasPointing = gesture.pointing;
+
+      const hint = pointingHint(gesture);
+      if (hint !== st.lastHint) {
+        st.lastHint = hint;
+        setGestureHint(hint);
       }
 
       // ── SIFT + homography (every 6 frames) ─────────────────────────
@@ -507,7 +533,10 @@ export function TactileExplorer({
       {/* Debug panel — remove once overlay alignment is confirmed */}
       <div className="tactile-debug-panel">
         <div className="tactile-debug-header">
-          <span>{status} &nbsp;·&nbsp; good: {debugInfo.good} &nbsp;·&nbsp; inliers: {debugInfo.inliers}</span>
+          <span>
+            {status} &nbsp;·&nbsp; good: {debugInfo.good} &nbsp;·&nbsp; inliers: {debugInfo.inliers}
+            {gestureHint ? <>&nbsp;·&nbsp;<strong>{gestureHint}</strong></> : null}
+          </span>
           <button
             type="button"
             className={`tactile-debug-fix-btn ${isFixed ? 'fixed' : ''}`}
@@ -547,7 +576,7 @@ export function TactileExplorer({
         </div>
       )}
       {!status.startsWith('Tracking') && (
-        <div className="tactile-status-hud">{status}</div>
+        <div className="tactile-status-hud">{gestureHint ? `${status} — ${gestureHint}` : status}</div>
       )}
     </>
   );

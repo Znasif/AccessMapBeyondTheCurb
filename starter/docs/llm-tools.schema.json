@@ -1,0 +1,234 @@
+{
+  "$comment": "Tool schemas for AccessMap Beyond the Curb. See docs/local-llm-tooling-design.md (rev 2). Do NOT pass `tools` verbatim -- filter by session capabilities first (see `requires` on each tool and §3.5 of the doc), then strip the non-standard `requires` / `frames` keys before sending to llama-server.",
+  "$version": "0.2.0",
+
+  "injectedContext": {
+    "$comment": "Supplied by the dispatcher on every call, never by the model.",
+    "uv": "{ u, v } in [0,1]^2 over the material -- the ONLY universal position. From 4-corner registration.",
+    "acuityCell": "integer -- quantized (u,v) at max(devicePinPitchMm, 2.5mm). Device-independent. Semantic-cache key.",
+    "window": "current subWindow: bbox for geographic, enBox for enu, pixel rect for image",
+    "worldId": "identifies the adapter + data source (osm:<quadkey> | audiom:<embedId> | camio:<projectId>)",
+    "frame": "geographic | enu | image",
+    "prefs": "{ streetAvoidance, maxUphill, maxDownhill, avoidBarriers }"
+  },
+
+  "capabilities": {
+    "places": "Named features can be enumerated and resolved by name",
+    "graph": "Connectivity between locations is known",
+    "routing": "A path can be computed between two locations",
+    "accessibilityAttrs": "Kerb / incline / surface / crossing attributes are available",
+    "entrances": "Building entrances can be located (YOLO + Mapillary)",
+    "regions": "Colour-map hotspot regions with descriptions (.camio)",
+    "liveFeatureStream": "The surface pushes feature-under-cursor events (Audiom featureEntered)"
+  },
+
+  "capabilityProfiles": {
+    "$comment": "Expected profile per route. Tool count is what actually reaches the prompt.",
+    "osm_full": { "caps": ["places", "graph", "routing", "accessibilityAttrs", "entrances"], "tools": 12 },
+    "osm_places_only": { "caps": ["places"], "tools": 7, "note": "before the OpenSidewalks tiling pipeline exists" },
+    "audiom_tier_a": { "caps": ["places", "graph", "liveFeatureStream"], "tools": 7 },
+    "audiom_tier_c": { "caps": ["places", "liveFeatureStream"], "tools": 7, "note": "names + bounds only; route_to enum narrowed to fly_me_there" },
+    "camio": { "caps": ["places", "regions"], "tools": 7 }
+  },
+
+  "tools": [
+    {
+      "requires": [],
+      "frames": ["geographic", "enu", "image"],
+      "$note": "With liveFeatureStream this should be answered from the last featureEntered payload at L0, with no inference at all.",
+      "type": "function",
+      "function": {
+        "name": "whats_here",
+        "description": "Describe what the user is currently touching on the tactile material: the feature, region, or path under the finger, and what is immediately adjacent to it. Use for questions about the current spot, such as what am I touching, what is this, where am I, what is under my finger, what is this one.",
+        "parameters": { "type": "object", "properties": {}, "required": [], "additionalProperties": false }
+      }
+    },
+    {
+      "requires": ["places"],
+      "frames": ["geographic", "enu", "image"],
+      "type": "function",
+      "function": {
+        "name": "describe_surroundings",
+        "description": "List the named things near the user's current finger position. Use only when the user asks what is around, nearby, close by, next to this, or in this area. Do not use when the user asks about one specific named thing.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "radius": { "type": "number", "description": "Search radius, in the units this map uses. Omit to use a sensible default for the current scale." },
+            "category": { "type": "string", "description": "Optional filter such as restaurant, shop, pharmacy, transit stop, park." }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "requires": ["places"],
+      "frames": ["geographic", "enu", "image"],
+      "type": "function",
+      "function": {
+        "name": "get_place_details",
+        "description": "Get everything known about one specific named thing: what it is, where it sits, what it is near, and any hours or accessibility notes. Use when the user asks about, or wants to know more about, something they have named. When in doubt about a named thing, call this.",
+        "parameters": {
+          "type": "object",
+          "properties": { "place": { "type": "string", "description": "Resolved canonical name" } },
+          "required": ["place"],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "requires": ["places"],
+      "frames": ["geographic", "enu", "image"],
+      "type": "function",
+      "function": {
+        "name": "am_i_at",
+        "description": "Check whether the user's finger is currently on or immediately beside a named thing. Use for questions like am I at, am I on, is this the, have I found it, did I reach it.",
+        "parameters": {
+          "type": "object",
+          "properties": { "place": { "type": "string", "description": "Resolved canonical name" } },
+          "required": ["place"],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "requires": ["places"],
+      "frames": ["geographic", "enu", "image"],
+      "$note": "The `units` enum MUST be narrowed per frame before serving: geographic -> [minutes, metres, feet, blocks]; enu -> [metres]; image -> [material_mm]. The result must carry the unit back so L3 narrates what it was given.",
+      "type": "function",
+      "function": {
+        "name": "get_distance_to",
+        "description": "Get the distance from the user's current position to a named thing. Use for questions about how far, how many blocks, how long a walk, is it close, is it far.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "place": { "type": "string", "description": "Resolved canonical name" },
+            "units": {
+              "type": "string",
+              "enum": ["minutes", "metres", "feet", "blocks", "material_mm"],
+              "description": "Omit unless the user asks for a specific unit. The default is whatever suits this map."
+            }
+          },
+          "required": ["place"],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "requires": ["places"],
+      "frames": ["geographic", "enu", "image"],
+      "$note": "Compass bearings are valid ONLY in the geographic frame. In enu and image frames the adapter must return clock-face and relative terms only -- saying 'north' about a skeleton diagram is a bug.",
+      "type": "function",
+      "function": {
+        "name": "get_direction_to",
+        "description": "Get the direction from the user's current finger position to a named thing, so they can move their finger toward it. Use for questions about which way, what direction, where is it from here, point me toward it.",
+        "parameters": {
+          "type": "object",
+          "properties": { "place": { "type": "string", "description": "Resolved canonical name" } },
+          "required": ["place"],
+          "additionalProperties": false
+        }
+      }
+    },
+
+    {
+      "requires": ["accessibilityAttrs"],
+      "frames": ["geographic"],
+      "type": "function",
+      "function": {
+        "name": "get_crossing_info",
+        "description": "Get accessibility details of the street crossing at or nearest to the user's finger: whether it is marked, whether it has a pedestrian signal or an audible beeping signal, whether there are curb ramps or a raised kerb on each side, tactile paving, and the street width. Use whenever the user asks about crossing the street, whether it is safe to cross, curb ramps, kerbs, walk lights, beeping signals, or corners.",
+        "parameters": { "type": "object", "properties": {}, "required": [], "additionalProperties": false }
+      }
+    },
+    {
+      "requires": ["accessibilityAttrs"],
+      "frames": ["geographic"],
+      "type": "function",
+      "function": {
+        "name": "get_segment_accessibility",
+        "description": "Get accessibility details of the sidewalk segment under the user's finger: how steep it is uphill or downhill, its surface material, how wide it is, whether there are steps, and any recorded obstacles or construction. Use whenever the user asks about hills, slope, steepness, how hard the walk is, surface, roughness, cobblestones, steps, width, or whether a wheelchair can get through.",
+        "parameters": { "type": "object", "properties": {}, "required": [], "additionalProperties": false }
+      }
+    },
+    {
+      "requires": ["entrances"],
+      "frames": ["geographic"],
+      "type": "function",
+      "function": {
+        "name": "find_accessible_entrance",
+        "description": "Locate the entrance of a named building and describe how to approach it, including which side of the building it is on and whether there are steps or a ramp. Use when the user asks about the door, the entrance, the way in, how to get inside, or where to go in.",
+        "parameters": {
+          "type": "object",
+          "properties": { "place": { "type": "string", "description": "Resolved canonical name of the building" } },
+          "required": ["place"],
+          "additionalProperties": false
+        }
+      }
+    },
+
+    {
+      "requires": ["places"],
+      "frames": ["geographic", "enu", "image"],
+      "$note": "NARROW the mode enum, do not drop the tool. Without the `routing` capability, serve mode as enum [fly_me_there] only. A model that cannot offer guidance at all is far worse than one offering the weaker mode.",
+      "type": "function",
+      "function": {
+        "name": "route_to",
+        "description": "Start guiding the user to a place. Use for any request to go, walk, get to, head to, find the way to, take me to, or navigate to somewhere. This changes application state and returns a confirmation rather than an answer.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "place": { "type": "string", "description": "Resolved canonical name of the destination" },
+            "mode": {
+              "type": "string",
+              "enum": ["street_by_street", "fly_me_there"],
+              "description": "street_by_street gives turn-by-turn walking directions along a route; the user signals this with words like navigate, take me, walk me, directions. fly_me_there instead helps the user locate the place on the tactile material with their finger; the user signals this with words like guide me, show me, help me find, where is it. If the user's wording does not clearly indicate one, do not guess -- ask which they want."
+            },
+            "alternative_index": { "type": "number", "description": "Which alternative route to use, counting from 1. Omit for the default. Use when the user asks for a different or another route." }
+          },
+          "required": ["place", "mode"],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "requires": ["routing"],
+      "frames": ["geographic"],
+      "type": "function",
+      "function": {
+        "name": "set_route_preferences",
+        "description": "Change how routes are calculated for this user based on their mobility needs. Use whenever the user states a limitation or preference about hills, steepness, curbs, kerbs, steps, or busy streets -- for example that they cannot manage steep hills, need to avoid curbs, use a wheelchair, or want to stay off main roads. Only include the fields the user actually mentioned.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "max_uphill": { "type": "number", "description": "Steepest uphill grade the user will accept, as a percentage. Lower is more cautious. Typical: 5 for cannot manage steep hills, 9 default, 12 for comfortable with hills." },
+            "max_downhill": { "type": "number", "description": "Steepest downhill grade the user will accept, as a percentage. Default 15." },
+            "avoid_curbs": { "type": "boolean", "description": "True if the user cannot step up or down a kerb without a ramp, including any wheelchair or walker user." },
+            "street_avoidance": { "type": "number", "description": "How strongly to prefer sidewalks over walking in the street, from 0 (no preference) to 2 (avoid strongly). Default 1." }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "requires": ["routing"],
+      "frames": ["geographic"],
+      "type": "function",
+      "function": {
+        "name": "stop_navigation",
+        "description": "Stop the current guidance or navigation and clear the route from the map. Use when the user says to stop, cancel, never mind, forget it, or that they are done navigating.",
+        "parameters": { "type": "object", "properties": {}, "required": [], "additionalProperties": false }
+      }
+    }
+  ],
+
+  "notes": {
+    "sideEffecting": ["route_to", "set_route_preferences", "stop_navigation"],
+    "$comment_sideEffecting": "Return a confirmation string for the model to narrate, per MapIO's 'Navigation mode is now enabled.' convention -- not data.",
+    "pure": ["whats_here", "describe_surroundings", "get_place_details", "am_i_at", "get_distance_to", "get_direction_to", "get_crossing_info", "get_segment_accessibility", "find_accessible_entrance"],
+    "$comment_pure": "Memoizable per §6.3 of the doc, keyed on acuityCell rather than any device pin index. get_place_details must recompute open/closed against the clock even on a cache hit.",
+    "descriptionsAreFrozen": "These description strings are training data. Editing one after fine-tuning FunctionGemma silently degrades routing -- retrain if you change them.",
+    "trainWithFilteredSets": "FunctionGemma must be trained on capability-FILTERED schema blocks, not the full 12. Training only on the full set teaches it to expect tools that will not be present in .camio or Audiom tier-C sessions."
+  }
+}

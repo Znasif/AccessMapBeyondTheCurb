@@ -123,15 +123,35 @@ code {
 
 .geocoder {
   position: relative;
+  display: block;
+  width: 100%;
 }
 
 .geocoder-input {
+  display: block;
   width: 100%;
-  min-height: 40px;
+  box-sizing: border-box;
+  min-height: 44px;
   border: 1px solid #cbd5e1;
   border-radius: 10px;
-  padding: 10px 38px 10px 12px;
+  padding: 12px 40px 12px 14px;
   background: #ffffff;
+  /* Inputs do not inherit the page font by default; without this the field
+     renders in the browser's default UI font at ~13px and looks unfinished. */
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.3;
+  color: #0f172a;
+}
+
+.geocoder-input::placeholder {
+  color: #94a3b8;
+}
+
+.geocoder-input:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+  border-color: #2563eb;
 }
 
 .image-card.selected {
@@ -146,14 +166,27 @@ code {
 
 .clear-button {
   position: absolute;
-  top: 7px;
+  /* Centred rather than pinned to a fixed top offset, so it tracks the input
+     height instead of drifting when the field grows. */
+  top: 50%;
+  transform: translateY(-50%);
   right: 8px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
   border: 0;
+  border-radius: 999px;
   background: transparent;
   color: #64748b;
   font-size: 22px;
   cursor: pointer;
   line-height: 1;
+}
+
+.clear-button:hover {
+  background: #f1f5f9;
+  color: #0f172a;
 }
 
 .search-status {
@@ -469,6 +502,13 @@ code {
 
 .point-marker.end {
   background: #ef4444;
+}
+
+/* The single location marker that replaced the A/B pair. The base
+   .point-marker rule sets no background, so without this the marker rendered
+   as a transparent circle with only its white border showing. */
+.point-marker.place {
+  background: #2563eb;
 }
 
 /* Ground-truth probe crosshair — click the map while explorer is active */
