@@ -1,0 +1,145 @@
+{
+  "timestamp": "20260803_180206",
+  "server": "http://localhost:11434/v1",
+  "model": "gemma-4-E4B-it",
+  "profile_filter": "camio",
+  "results": [
+    {
+      "id": "tc_002",
+      "utterance": "what is under my finger",
+      "profile": "camio",
+      "expected_tool": "whats_here",
+      "expected_args": {},
+      "elapsed_sec": 13.379,
+      "http_success": true,
+      "called_tool": "whats_here",
+      "called_args": {},
+      "tool_match": true,
+      "args_match": true,
+      "false_positive": false,
+      "capability_violation": false,
+      "raw_response": {
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "reasoning_content": "1. **Analyze the user's request:** The user is asking \"what is under my finger\".\n2. **Identify the relevant tool:** The `whats_here` tool is specifically designed to \"Describe what the user is currently touching on the tactile material: the feature, region, or path under the finger, and what is immediately adjacent to it.\"\n3. **Determine required arguments:** The `whats_here` function does not require any arguments.\n4. **Construct the tool call:** `whats_here()`\n5. **Formulate the response:** Generate the tool call in the required JSON format.",
+              "tool_calls": [
+                {
+                  "type": "function",
+                  "function": {
+                    "name": "whats_here",
+                    "arguments": "{}"
+                  },
+                  "id": "YTjTQqwwz0gb77xQ97KGhDgsLA7Z6fFD"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 1785805286,
+        "model": "unsloth/gemma-4-e4b-it-qat-GGUF:UD-Q4_K_XL",
+        "system_fingerprint": "b10098-0278d8362",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 140,
+          "prompt_tokens": 990,
+          "total_tokens": 1130,
+          "prompt_tokens_details": {
+            "cached_tokens": 475
+          }
+        },
+        "id": "chatcmpl-G2jSgzueBuEsgLhDC1cqTx93BQGffqwt",
+        "timings": {
+          "cache_n": 475,
+          "prompt_n": 515,
+          "prompt_ms": 3006.383,
+          "prompt_per_token_ms": 5.837636893203883,
+          "prompt_per_second": 171.30219270132915,
+          "predicted_n": 140,
+          "predicted_ms": 10172.707,
+          "predicted_per_token_ms": 72.66219285714286,
+          "predicted_per_second": 13.762315183166093
+        }
+      }
+    },
+    {
+      "id": "tc_008",
+      "utterance": "have I reached the city hall yet?",
+      "profile": "camio",
+      "expected_tool": "am_i_at",
+      "expected_args": {
+        "place": "San Francisco City Hall"
+      },
+      "elapsed_sec": 30.003,
+      "http_success": false,
+      "called_tool": null,
+      "called_args": null,
+      "tool_match": false,
+      "args_match": false,
+      "false_positive": false,
+      "capability_violation": false,
+      "raw_response": {
+        "error": "timed out"
+      },
+      "error": {
+        "error": "timed out"
+      }
+    },
+    {
+      "id": "tc_neg_005",
+      "utterance": "thank you very much for your help!",
+      "profile": "camio",
+      "expected_tool": null,
+      "expected_args": null,
+      "elapsed_sec": 6.547,
+      "http_success": true,
+      "called_tool": null,
+      "called_args": null,
+      "tool_match": true,
+      "args_match": true,
+      "false_positive": false,
+      "capability_violation": false,
+      "raw_response": {
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "You're very welcome! I'm glad I could help. Feel free to reach out if you need anything else.",
+              "reasoning_content": "The user is expressing gratitude (\"thank you very much for your help!\"). This is a conversational closing statement and does not require any map interaction, tool calls, or specific information retrieval. I should respond with a polite and helpful acknowledgment."
+            }
+          }
+        ],
+        "created": 1785805322,
+        "model": "unsloth/gemma-4-e4b-it-qat-GGUF:UD-Q4_K_XL",
+        "system_fingerprint": "b10098-0278d8362",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 77,
+          "prompt_tokens": 993,
+          "total_tokens": 1070,
+          "prompt_tokens_details": {
+            "cached_tokens": 976
+          }
+        },
+        "id": "chatcmpl-HCFsRAqxD4k9NsjFFjSiW9Ozrd4ksBcd",
+        "timings": {
+          "cache_n": 976,
+          "prompt_n": 17,
+          "prompt_ms": 605.733,
+          "prompt_per_token_ms": 35.631352941176466,
+          "prompt_per_second": 28.06517062798296,
+          "predicted_n": 77,
+          "predicted_ms": 5632.934,
+          "predicted_per_token_ms": 73.15498701298702,
+          "predicted_per_second": 13.669608058606757
+        }
+      }
+    }
+  ]
+}

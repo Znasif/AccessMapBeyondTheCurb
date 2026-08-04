@@ -1,0 +1,386 @@
+{
+  "timestamp": "20260803_181157",
+  "server": "http://localhost:11434/v1",
+  "model": "auto",
+  "profile_filter": "camio",
+  "results": [
+    {
+      "id": "tc_002",
+      "utterance": "what is under my finger",
+      "profile": "camio",
+      "expected_tool": "whats_here",
+      "expected_args": {},
+      "elapsed_sec": 11.06,
+      "http_success": true,
+      "called_tool": "whats_here",
+      "called_args": {},
+      "tool_match": true,
+      "args_match": true,
+      "false_positive": false,
+      "capability_violation": false,
+      "raw_response": {
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "reasoning_content": "1. **Analyze the user's request:** The user is asking \"what is under my finger\".\n2. **Identify the relevant tool:** The `whats_here` tool is specifically designed to \"Describe what the user is currently touching on the tactile material: the feature, region, or path under the finger, and what is immediately adjacent to it.\"\n3. **Determine required arguments:** The `whats_here` function does not require any arguments.\n4. **Construct the tool call:** `whats_here()`\n5. **Formulate the response:** Generate the tool call in the required JSON format.",
+              "tool_calls": [
+                {
+                  "type": "function",
+                  "function": {
+                    "name": "whats_here",
+                    "arguments": "{}"
+                  },
+                  "id": "M621Crt7DXks8Fd081hRqbxDEiVB3suk"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 1785805784,
+        "model": "unsloth/gemma-4-e4b-it-qat-GGUF:UD-Q4_K_XL",
+        "system_fingerprint": "b10098-0278d8362",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 140,
+          "prompt_tokens": 990,
+          "total_tokens": 1130,
+          "prompt_tokens_details": {
+            "cached_tokens": 980
+          }
+        },
+        "id": "chatcmpl-fvHJCu17VvKSFyPvIPqIUv5Zke8EBEv9",
+        "timings": {
+          "cache_n": 980,
+          "prompt_n": 10,
+          "prompt_ms": 741.36,
+          "prompt_per_token_ms": 74.136,
+          "prompt_per_second": 13.488723427214849,
+          "predicted_n": 140,
+          "predicted_ms": 10229.059,
+          "predicted_per_token_ms": 73.06470714285713,
+          "predicted_per_second": 13.68649843548659
+        }
+      }
+    },
+    {
+      "id": "tc_002_ny",
+      "utterance": "how far is it to the Empire State Building from here?",
+      "profile": "camio",
+      "expected_tool": "get_distance_to",
+      "expected_args": {
+        "place": "Empire State Building"
+      },
+      "elapsed_sec": 33.712,
+      "http_success": true,
+      "called_tool": "get_distance_to",
+      "called_args": {
+        "place": "Empire State Building"
+      },
+      "tool_match": true,
+      "args_match": true,
+      "false_positive": false,
+      "capability_violation": false,
+      "raw_response": {
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "reasoning_content": "1. **Analyze the user's request:** The user is asking \"how far is it to the Empire State Building from here?\".\n\n2. **Identify the core intent:** The user wants to know the distance between their current location and a specific named place (\"Empire State Building\").\n\n3. **Examine available tools:**\n    * `whats_here`: Describes the current spot. (Not relevant for distance to another place).\n    * `describe_surroundings`: Lists nearby named things. (Not relevant for distance to a specific place).\n    * `get_place_details`: Gets details about a specific place. (Not relevant for distance).\n    * `am_i_at`: Checks if the user is at a specific place. (Not relevant for distance).\n    * `get_distance_to`: Gets the distance from the user's current position to a named thing. (This is exactly what is needed).\n    * `get_direction_to`: Gets the direction to a named thing. (Not relevant for distance).\n    * `route_to`: Starts guiding the user to a place. (Not relevant for distance).\n\n4. **Determine the required arguments for `get_distance_to`:**\n    * `place`: The target place name, which is \"Empire State Building\".\n    * `units`: Optional. The user did not specify units (e.g., meters, blocks, minutes).\n\n5. **Construct the tool call:** Since the user didn't specify units, I will omit the `units` argument and let the tool use its default.\n\n6. **Final Tool Call:** `get_distance_to(place=\"Empire State Building\")`",
+              "tool_calls": [
+                {
+                  "type": "function",
+                  "function": {
+                    "name": "get_distance_to",
+                    "arguments": "{\"place\":\"Empire State Building\"}"
+                  },
+                  "id": "ymr0qHdfs22RqLZoRr0GnE78KrsKanUP"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 1785805817,
+        "model": "unsloth/gemma-4-e4b-it-qat-GGUF:UD-Q4_K_XL",
+        "system_fingerprint": "b10098-0278d8362",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 380,
+          "prompt_tokens": 1010,
+          "total_tokens": 1390,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "id": "chatcmpl-8DoFsehPiXNDaIK2aN80yyjfRO5ATAx6",
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 1010,
+          "prompt_ms": 5494.994,
+          "prompt_per_token_ms": 5.440588118811881,
+          "prompt_per_second": 183.80365838434037,
+          "predicted_n": 380,
+          "predicted_ms": 28091.991,
+          "predicted_per_token_ms": 73.92629210526316,
+          "predicted_per_second": 13.526987104616401
+        }
+      }
+    },
+    {
+      "id": "tc_002_ny2",
+      "utterance": "point me toward Shake Shack",
+      "profile": "camio",
+      "expected_tool": "get_direction_to",
+      "expected_args": {
+        "place": "Shake Shack"
+      },
+      "elapsed_sec": 31.617,
+      "http_success": true,
+      "called_tool": "get_direction_to",
+      "called_args": {
+        "place": "Shake Shack"
+      },
+      "tool_match": true,
+      "args_match": true,
+      "false_positive": false,
+      "capability_violation": false,
+      "raw_response": {
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "reasoning_content": "1. **Analyze the user's request:** The user said, \"point me toward Shake Shack.\"\n\n2. **Identify the intent:** The user wants directional guidance to a specific place (\"Shake Shack\").\n\n3. **Examine available tools:**\n    * `whats_here`: Describes the current spot. (Not relevant)\n    * `describe_surroundings`: Lists nearby places. (Not relevant)\n    * `get_place_details`: Gets details about a specific place. (Not relevant)\n    * `am_i_at`: Checks if the user is at a specific place. (Not relevant)\n    * `get_distance_to`: Gets the distance to a specific place. (Not relevant)\n    * `get_direction_to`: Gets the direction from the current position to a specific place. (Highly relevant)\n    * `route_to`: Starts guiding the user to a place (navigation). (Relevant, but `get_direction_to` is more specific to \"point me toward\").\n\n4. **Select the appropriate tool:** `get_direction_to` is the best fit for \"point me toward.\"\n\n5. **Determine the arguments:** The `get_direction_to` function requires a `place` argument. The user specified \"Shake Shack\".\n\n6. **Construct the tool call:** `get_direction_to(place=\"Shake Shack\")`\n\n7. **Final Output Generation:** Generate the tool call in the required format.",
+              "tool_calls": [
+                {
+                  "type": "function",
+                  "function": {
+                    "name": "get_direction_to",
+                    "arguments": "{\"place\":\"Shake Shack\"}"
+                  },
+                  "id": "FWaN5ScZMia6ikDIbvtHb12e1ALJDBv5"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 1785805849,
+        "model": "unsloth/gemma-4-e4b-it-qat-GGUF:UD-Q4_K_XL",
+        "system_fingerprint": "b10098-0278d8362",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 335,
+          "prompt_tokens": 1002,
+          "total_tokens": 1337,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "id": "chatcmpl-KIarl5PMvKpMBdG0cKugNSSJcJ7N7Wzy",
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 1002,
+          "prompt_ms": 5422.572,
+          "prompt_per_token_ms": 5.411748502994012,
+          "prompt_per_second": 184.78316193865197,
+          "predicted_n": 335,
+          "predicted_ms": 26050.153,
+          "predicted_per_token_ms": 77.76165074626866,
+          "predicted_per_second": 12.859809307070098
+        }
+      }
+    },
+    {
+      "id": "tc_002_ny3",
+      "utterance": "tell me more details about The Morgan Library & Museum",
+      "profile": "camio",
+      "expected_tool": "get_place_details",
+      "expected_args": {
+        "place": "The Morgan Library & Museum"
+      },
+      "elapsed_sec": 26.931,
+      "http_success": true,
+      "called_tool": "get_place_details",
+      "called_args": {
+        "place": "The Morgan Library & Museum"
+      },
+      "tool_match": true,
+      "args_match": true,
+      "false_positive": false,
+      "capability_violation": false,
+      "raw_response": {
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "reasoning_content": "1. **Analyze the user's request:** The user is asking for \"more details about The Morgan Library & Museum\".\n\n2. **Examine available tools:** I have several tools related to map exploration: `whats_here`, `describe_surroundings`, `get_place_details`, `am_i_at`, `get_distance_to`, `get_direction_to`, and `route_to`.\n\n3. **Determine the appropriate tool:** The request is specifically about getting information about a named place (\"The Morgan Library & Museum\"). The `get_place_details` tool is designed for this purpose: \"Get everything known about one specific named thing: what it is, where it sits, what it is near, and any hours or accessibility notes. Use when the user asks about, or wants to know more about, something they have named.\"\n\n4. **Identify required arguments:** The `get_place_details` tool requires a `place` argument, which is the resolved canonical name. The user provided \"The Morgan Library & Museum\".\n\n5. **Construct the tool call:**\n   `get_place_details(place=\"The Morgan Library & Museum\")`\n\n6. **Final Output Generation:** Generate the tool call in the required JSON format.",
+              "tool_calls": [
+                {
+                  "type": "function",
+                  "function": {
+                    "name": "get_place_details",
+                    "arguments": "{\"place\":\"The Morgan Library & Museum\"}"
+                  },
+                  "id": "DC7j1DPhINnnmhl8RIhGPbKlo3kTb6f6"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 1785805876,
+        "model": "unsloth/gemma-4-e4b-it-qat-GGUF:UD-Q4_K_XL",
+        "system_fingerprint": "b10098-0278d8362",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 291,
+          "prompt_tokens": 1010,
+          "total_tokens": 1301,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "id": "chatcmpl-QERIIhM00tAIGX74kQskldVMZGkb0hiQ",
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 1010,
+          "prompt_ms": 5473.273,
+          "prompt_per_token_ms": 5.419082178217822,
+          "prompt_per_second": 184.53309381790382,
+          "predicted_n": 291,
+          "predicted_ms": 21306.973,
+          "predicted_per_token_ms": 73.21983848797251,
+          "predicted_per_second": 13.657500762778456
+        }
+      }
+    },
+    {
+      "id": "tc_008",
+      "utterance": "have I reached the city hall yet?",
+      "profile": "camio",
+      "expected_tool": "am_i_at",
+      "expected_args": {
+        "place": "San Francisco City Hall"
+      },
+      "elapsed_sec": 31.374,
+      "http_success": true,
+      "called_tool": "am_i_at",
+      "called_args": {
+        "place": "San Francisco City Hall"
+      },
+      "tool_match": true,
+      "args_match": true,
+      "false_positive": false,
+      "capability_violation": false,
+      "raw_response": {
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "reasoning_content": "1. **Analyze the user's request:** The user is asking, \"have I reached the city hall yet?\"\n\n2. **Identify the intent:** The user wants to know their current location relative to a specific named place (\"city hall\").\n\n3. **Examine available tools:**\n    * `whats_here`: Describes the current spot. (Not relevant for checking if they reached a specific place).\n    * `describe_surroundings`: Lists nearby named things. (Not relevant for checking if they reached a specific place).\n    * `get_place_details`: Gets details about a named place. (Not relevant for checking current location).\n    * `am_i_at`: Checks if the user's finger is currently on or immediately beside a named thing. (Highly relevant).\n    * `get_distance_to`: Gets the distance to a named thing. (Relevant, but `am_i_at` is more direct for \"reached yet\").\n    * `get_direction_to`: Gets the direction to a named thing. (Not relevant for checking if they reached it).\n    * `route_to`: Starts guiding the user. (Not relevant for checking current status).\n\n4. **Determine the necessary tool call:** The `am_i_at` tool is the most appropriate.\n\n5. **Identify required arguments:** The `am_i_at` tool requires a `place` argument. The user specified \"city hall\".\n\n6. **Construct the tool call:** `am_i_at(place=\"San Francisco City Hall\")`. (The prompt context shows \"San Francisco City Hall\" is a resolved candidate place, so using the full name is appropriate).\n\n7. **Final Output Generation:** Generate the tool call in the required format.",
+              "tool_calls": [
+                {
+                  "type": "function",
+                  "function": {
+                    "name": "am_i_at",
+                    "arguments": "{\"place\":\"San Francisco City Hall\"}"
+                  },
+                  "id": "N4XWg0GVMRKtOrQI3lz7qmgnp7gqhil5"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 1785805907,
+        "model": "unsloth/gemma-4-e4b-it-qat-GGUF:UD-Q4_K_XL",
+        "system_fingerprint": "b10098-0278d8362",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 398,
+          "prompt_tokens": 1007,
+          "total_tokens": 1405,
+          "prompt_tokens_details": {
+            "cached_tokens": 1002
+          }
+        },
+        "id": "chatcmpl-BNwbrVY6OVh3riSHYGXiGAqkg9JOP8Qr",
+        "timings": {
+          "cache_n": 1002,
+          "prompt_n": 5,
+          "prompt_ms": 294.657,
+          "prompt_per_token_ms": 58.9314,
+          "prompt_per_second": 16.96888246333873,
+          "predicted_n": 398,
+          "predicted_ms": 30734.824,
+          "predicted_per_token_ms": 77.22317587939699,
+          "predicted_per_second": 12.949480367937033
+        }
+      }
+    },
+    {
+      "id": "tc_neg_005",
+      "utterance": "thank you very much for your help!",
+      "profile": "camio",
+      "expected_tool": null,
+      "expected_args": null,
+      "elapsed_sec": 6.363,
+      "http_success": true,
+      "called_tool": null,
+      "called_args": null,
+      "tool_match": true,
+      "args_match": true,
+      "false_positive": false,
+      "capability_violation": false,
+      "raw_response": {
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "You're very welcome! I'm glad I could help. Feel free to reach out if you need anything else.",
+              "reasoning_content": "The user is expressing gratitude (\"thank you very much for your help!\"). This is a conversational closing statement and does not require any map interaction, tool calls, or specific information retrieval. I should respond with a polite and helpful acknowledgment."
+            }
+          }
+        ],
+        "created": 1785805914,
+        "model": "unsloth/gemma-4-e4b-it-qat-GGUF:UD-Q4_K_XL",
+        "system_fingerprint": "b10098-0278d8362",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 77,
+          "prompt_tokens": 993,
+          "total_tokens": 1070,
+          "prompt_tokens_details": {
+            "cached_tokens": 979
+          }
+        },
+        "id": "chatcmpl-GRGs3KsiySDusN2OhCRRaaIQAAtzaenr",
+        "timings": {
+          "cache_n": 979,
+          "prompt_n": 14,
+          "prompt_ms": 561.422,
+          "prompt_per_token_ms": 40.10157142857143,
+          "prompt_per_second": 24.936678648147023,
+          "predicted_n": 77,
+          "predicted_ms": 5576.718,
+          "predicted_per_token_ms": 72.42490909090908,
+          "predicted_per_second": 13.807404283307854
+        }
+      }
+    }
+  ]
+}

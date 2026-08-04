@@ -1,0 +1,276 @@
+[
+  {
+    "id": "tc_001",
+    "utterance": "what am I touching right now?",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": [] },
+    "expected_tool": "whats_here",
+    "expected_args": {}
+  },
+  {
+    "id": "tc_002",
+    "utterance": "what is under my finger",
+    "capability_profile": "camio",
+    "context": { "resolved_places": [] },
+    "expected_tool": "whats_here",
+    "expected_args": {}
+  },
+  {
+    "id": "tc_002_ny",
+    "utterance": "how far is it to the Empire State Building from here?",
+    "capability_profile": "camio",
+    "context": { "resolved_places": ["Empire State Building"] },
+    "expected_tool": "get_distance_to",
+    "expected_args": { "place": "Empire State Building" }
+  },
+  {
+    "id": "tc_002_ny2",
+    "utterance": "point me toward Shake Shack",
+    "capability_profile": "camio",
+    "context": { "resolved_places": ["Shake Shack"] },
+    "expected_tool": "get_direction_to",
+    "expected_args": { "place": "Shake Shack" }
+  },
+  {
+    "id": "tc_002_ny3",
+    "utterance": "tell me more details about The Morgan Library & Museum",
+    "capability_profile": "camio",
+    "context": { "resolved_places": ["The Morgan Library & Museum"] },
+    "expected_tool": "get_place_details",
+    "expected_args": { "place": "The Morgan Library & Museum" }
+  },
+  {
+    "id": "tc_003",
+    "utterance": "what shops or restaurants are nearby?",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": [] },
+    "expected_tool": "describe_surroundings",
+    "expected_args": {}
+  },
+  {
+    "id": "tc_004",
+    "utterance": "what is in this area close by",
+    "capability_profile": "audiom_tier_a",
+    "context": { "resolved_places": [] },
+    "expected_tool": "describe_surroundings",
+    "expected_args": {}
+  },
+  {
+    "id": "tc_005",
+    "utterance": "tell me about Walgreens Divisadero Street",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": ["Walgreens Divisadero Street"] },
+    "expected_tool": "get_place_details",
+    "expected_args": { "place": "Walgreens Divisadero Street" }
+  },
+  {
+    "id": "tc_006",
+    "utterance": "what are the opening hours for Safeway",
+    "capability_profile": "osm_places_only",
+    "context": { "resolved_places": ["Safeway"] },
+    "expected_tool": "get_place_details",
+    "expected_args": { "place": "Safeway" }
+  },
+  {
+    "id": "tc_007",
+    "utterance": "am I at the bus stop?",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": ["Divisadero St & Haight St Bus Stop"] },
+    "expected_tool": "am_i_at",
+    "expected_args": { "place": "Divisadero St & Haight St Bus Stop" }
+  },
+  {
+    "id": "tc_008",
+    "utterance": "have I reached the city hall yet?",
+    "capability_profile": "camio",
+    "context": { "resolved_places": ["San Francisco City Hall"] },
+    "expected_tool": "am_i_at",
+    "expected_args": { "place": "San Francisco City Hall" }
+  },
+  {
+    "id": "tc_009",
+    "utterance": "how far is it to Golden Gate Park?",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": ["Golden Gate Park"] },
+    "expected_tool": "get_distance_to",
+    "expected_args": { "place": "Golden Gate Park" }
+  },
+  {
+    "id": "tc_010",
+    "utterance": "how many minutes walk to Bi-Rite Market",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": ["Bi-Rite Market"] },
+    "expected_tool": "get_distance_to",
+    "expected_args": { "place": "Bi-Rite Market", "units": "minutes" }
+  },
+  {
+    "id": "tc_011",
+    "utterance": "which direction is Alamo Square from here?",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": ["Alamo Square"] },
+    "expected_tool": "get_direction_to",
+    "expected_args": { "place": "Alamo Square" }
+  },
+  {
+    "id": "tc_012",
+    "utterance": "point me toward the library",
+    "capability_profile": "audiom_tier_c",
+    "context": { "resolved_places": ["Public Library"] },
+    "expected_tool": "get_direction_to",
+    "expected_args": { "place": "Public Library" }
+  },
+  {
+    "id": "tc_013",
+    "utterance": "is there a curb ramp at this corner and an audible signal?",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": [] },
+    "expected_tool": "get_crossing_info",
+    "expected_args": {}
+  },
+  {
+    "id": "tc_014",
+    "utterance": "is it safe to cross the street here?",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": [] },
+    "expected_tool": "get_crossing_info",
+    "expected_args": {}
+  },
+  {
+    "id": "tc_015",
+    "utterance": "how steep is this sidewalk and can a wheelchair get through?",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": [] },
+    "expected_tool": "get_segment_accessibility",
+    "expected_args": {}
+  },
+  {
+    "id": "tc_016",
+    "utterance": "are there steps or construction on this slope?",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": [] },
+    "expected_tool": "get_segment_accessibility",
+    "expected_args": {}
+  },
+  {
+    "id": "tc_017",
+    "utterance": "where is the main door or entrance for City Hall?",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": ["San Francisco City Hall"] },
+    "expected_tool": "find_accessible_entrance",
+    "expected_args": { "place": "San Francisco City Hall" }
+  },
+  {
+    "id": "tc_018",
+    "utterance": "how do I get inside the pharmacy building?",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": ["Walgreens Divisadero Street"] },
+    "expected_tool": "find_accessible_entrance",
+    "expected_args": { "place": "Walgreens Divisadero Street" }
+  },
+  {
+    "id": "tc_019",
+    "utterance": "navigate me turn-by-turn to Walgreens Divisadero Street",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": ["Walgreens Divisadero Street"] },
+    "expected_tool": "route_to",
+    "expected_args": { "place": "Walgreens Divisadero Street", "mode": "street_by_street" }
+  },
+  {
+    "id": "tc_020",
+    "utterance": "guide me to show where Alamo Square is on the board",
+    "capability_profile": "audiom_tier_c",
+    "context": { "resolved_places": ["Alamo Square"] },
+    "expected_tool": "route_to",
+    "expected_args": { "place": "Alamo Square", "mode": "fly_me_there" }
+  },
+  {
+    "id": "tc_021",
+    "utterance": "I cannot manage steep hills, please avoid them",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": [] },
+    "expected_tool": "set_route_preferences",
+    "expected_args": { "max_uphill": 5 }
+  },
+  {
+    "id": "tc_022",
+    "utterance": "I use a wheelchair and need to avoid curbs",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": [] },
+    "expected_tool": "set_route_preferences",
+    "expected_args": { "avoid_curbs": true }
+  },
+  {
+    "id": "tc_023",
+    "utterance": "stop navigation and clear the route",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": [] },
+    "expected_tool": "stop_navigation",
+    "expected_args": {}
+  },
+  {
+    "id": "tc_024",
+    "utterance": "never mind cancel guidance",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": [] },
+    "expected_tool": "stop_navigation",
+    "expected_args": {}
+  },
+  {
+    "id": "tc_neg_001",
+    "utterance": "hello, how are you today?",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": [] },
+    "expected_tool": null,
+    "expected_args": null
+  },
+  {
+    "id": "tc_neg_002",
+    "utterance": "could you repeat that again slower?",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": [] },
+    "expected_tool": null,
+    "expected_args": null
+  },
+  {
+    "id": "tc_neg_003",
+    "utterance": "what features can this system help me with?",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": [] },
+    "expected_tool": null,
+    "expected_args": null
+  },
+  {
+    "id": "tc_neg_004",
+    "utterance": "was that north or south of here?",
+    "capability_profile": "osm_full",
+    "context": { "resolved_places": [] },
+    "expected_tool": null,
+    "expected_args": null
+  },
+  {
+    "id": "tc_neg_005",
+    "utterance": "thank you very much for your help!",
+    "capability_profile": "camio",
+    "context": { "resolved_places": [] },
+    "expected_tool": null,
+    "expected_args": null
+  },
+  {
+    "id": "tc_cap_001",
+    "utterance": "is there a walk light or curb ramp at this corner?",
+    "capability_profile": "audiom_tier_c",
+    "context": { "resolved_places": [] },
+    "expected_tool": null,
+    "expected_args": null,
+    "note": "get_crossing_info requires accessibilityAttrs which is absent in audiom_tier_c, model MUST NOT call un-offered tool"
+  },
+  {
+    "id": "tc_cap_002",
+    "utterance": "navigate me turn-by-turn to city hall",
+    "capability_profile": "audiom_tier_c",
+    "context": { "resolved_places": ["San Francisco City Hall"] },
+    "expected_tool": "route_to",
+    "expected_args": { "place": "San Francisco City Hall", "mode": "fly_me_there" },
+    "note": "audiom_tier_c narrows route_to enum to fly_me_there"
+  }
+]
