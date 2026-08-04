@@ -4,8 +4,16 @@
 Gemma stack (llama.cpp on an 8 GB M1), with prompt and tool-call caching handled by
 EmbeddingGemma and FunctionGemma.
 
-**Status:** design, revision 2. No implementation yet.
+**Status:** revision 3. Milestone 8 implemented and measured; milestone 3 partially
+(embeddings only). Everything else still design.
 
+> **Revision 3 is the first one with measurements in it.** The stack now runs, and several rev-2
+> numbers did not survive contact with it. Corrected in place, each marked ⚠️ with what was measured:
+> the L1 escalation threshold (§4), candidate injection into L3 (§4.3), where the volatile prompt
+> block may sit (§6.1), what a place document contains (§6.4), how the servers are actually launched
+> (§8), and that the Web Speech recognition side is **not** local (§8.1). §11 is new: how to
+> reproduce every number here.
+>
 > **Revision 2 changed the foundations.** Rev 1 assumed one route (Mapbox → 43×31 pin grid → WGS84
 > → OpenSidewalks). That is one of at least three routes, and the pin grid is one of at least three
 > surfaces. Sections 2 and 3 are new; §5 (tools) and §6 (caching) were rewritten to sit on top of
@@ -253,9 +261,22 @@ L1 never generates text. L2 never chains — FunctionGemma is documented as trai
 single-turn and parallel calls. L3 is the only layer that speaks, and the only one that runs
 MapIO's tool loop.
 
-**Escalation rule.** L2 emits only when its top logit margin clears a threshold *and* L1's top-1
-place similarity exceeds ~0.55. Otherwise fall through to L3 with the full capability-filtered
-schema set. Log every escalation — that log is your next training batch (§7.4).
+**Escalation rule.** L2 emits only when its top logit margin clears a threshold *and* L1's result is
+unambiguous. Otherwise fall through to L3 with the full capability-filtered schema set. Log every
+escalation — that log is your next training batch (§7.4).
+
+> ⚠️ **Corrected in rev 3.** This rule originally read *"L1's top-1 place similarity exceeds ~0.55"*.
+> That constant does not survive EmbeddingGemma's task prefixes, which improve ranking but compress
+> absolute scores — correct matches land at **0.36–0.53**, so a 0.55 cutoff rejects nearly all of
+> them. Use a scale-free **relative** margin instead:
+>
+> ```
+> confident  ⇔  (top1 − top2) / top1  ≥  0.15
+> ```
+>
+> Implemented as `MIN_RELATIVE_MARGIN` in `src/lib/placeIndex.js`. A low margin is **not** a
+> retrieval failure — it usually means several candidates are equally valid, which is precisely the
+> case that should reach L3 with all of them.
 
 ### 4.2 Place resolution is not a tool
 
@@ -266,17 +287,80 @@ tool-call costume, and it is the most frequent call in the system.
 ```
 on window change:
     places ← adapter.places(window)
-    embed(f"{name}. {category}. {context}") → EmbeddingGemma
+    embed(document(place)) → EmbeddingGemma      # see §6.4 for what document() includes
     persist to IndexedDB, key = worldId + windowId
 
 on utterance:
     top-k ← cosine(embed(utterance), places), k = 5
     highlight top-k on the surface
-    inject top-k names as candidate places
+    inject top-k as ranked candidates            # names AND categories — see §4.3
 ```
 
-Zero LLM tokens, and the same index resolves `place: STRING` for every tool. Ties within 0.02
-cosine trigger a clarifying question rather than a guess.
+Zero LLM tokens, and the same index resolves `place: STRING` for every tool.
+
+**Measured (rev 3), 50 POIs of the `new_york` camio model:**
+
+| | |
+|---|---|
+| full graph context, if sent to L3 | ~11,073 tokens — **exceeds the 8192 window** |
+| full POI list | ~9,852 tokens |
+| L1 top-5 candidates | **~27 tokens**, 12–120 ms |
+
+MapIO's approach does not merely waste tokens on this hardware; it does not fit.
+
+**Score this on recall@k, not top-1.** Measured recall@1 is 1/5 while recall@5 is 5/5, and that gap
+is not a defect. For *"the Korean place"* the top five are BCD Tofu House, Gammeeok, Barn Joo 35,
+Woorijip — all Korean. For *"I need an ATM"* they are five banks. Which of several equally-valid
+candidates lands at rank 1 is arbitrary, so top-1 accuracy measures nothing useful here. **L1's job
+is to cut context, not to decide.** L3 decides, from the whole top-k.
+
+> ⚠️ The rev-2 line *"ties within 0.02 cosine trigger a clarifying question rather than a guess"* is
+> retained as `TIE_EPSILON` but is **not** the primary signal, and 0.02 is too tight: two genuinely
+> ambiguous queries measured at 0.018 (two Korean restaurants) and 0.032 (two banks), so it catches
+> one and misses the other. 0.04 catches both. Left at 0.02 pending a decision — but note that
+> asking a clarifying question is L3's call to make with the candidates in hand, not L1's to make
+> from a scalar.
+
+### 4.3 Injecting candidates into L3
+
+The seam between L1 and L3 is worth more than it looks. Same model, same tools, same retrieval —
+only the prompt text differs. Measured over five place-referring utterances (camio profile):
+
+| variant | correct | mean |
+|---|---|---|
+| flat list: *"candidate places in the current window: [...]"* | 2/5 | 3.0 s |
+| ranked, framed as the resolution of what the user just said | 3/5 | 2.0 s |
+| \+ explicit `describe_surroundings` boundary | 4/5 | 2.1 s |
+| \+ full category strings | 5/5 | 7.6 s |
+| \+ at most 3 categories, deduped by namespace | **5/5** | **2.9 s** |
+
+Three distinct failures, three distinct fixes:
+
+1. **Framing.** A flat "places in the window" list reads as ambient scenery, which invites
+   `describe_surroundings`. Presenting the same names as the *already-computed resolution of what
+   the user just said* moved "the Korean place with tofu soup" from
+   `describe_surroundings{restaurant}` to `get_place_details{BCD Tofu House}`.
+2. **Tool boundary.** `describe_surroundings` is a strong attractor for anything vague. Naming when
+   *not* to use it fixed "how far is the Irish pub".
+3. **Evidence.** Bare names discard *why* L1 ranked something first. L3 cannot connect "the
+   observation deck" to "Empire State Building" from the name alone, and correctly refuses to guess.
+   Passing the category makes the link visible.
+
+**Dedupe categories by namespace, do not take the first N.** The Empire State Building is tagged
+`building.office, building.historic, heritage, tourism.attraction, office, building.tourism`. A naive
+`slice(0,2)` spends the whole budget on `building.*` and drops `tourism.attraction`, the only tag
+that links it to "the observation deck".
+
+**Inject unconditionally; do not gate.** Six of the twelve tools take a `place` argument
+(`get_place_details`, `am_i_at`, `get_distance_to`, `get_direction_to`, `find_accessible_entrance`,
+`route_to`) and six do not. Measured over six utterances whose correct tool takes no place —
+`whats_here`, `get_segment_accessibility`, `get_crossing_info`, `stop_navigation`,
+`set_route_preferences`, and a bare greeting — the candidate block is **inert**: 6/6 correct and
+**zero** place-tool false positives both with and without it. A semantic gate would save ~80 tokens
+and add a branch that can be wrong. The set of place-taking tools is derivable from the schema
+(`'place' in parameters.properties`) — see `placeTakingTools()`, never hand-list it.
+
+Implemented in `src/lib/candidateContext.js`.
 
 ---
 
@@ -378,13 +462,9 @@ Three tiers. Only the first is llama.cpp's job.
 ### 6.1 KV prefix cache — llama.cpp native
 
 System prompt + capability-filtered tool schemas + window place skeleton are static for the lifetime
-of a window.
+of a window. Together that is ~1,690 tokens on the camio profile — the prefix worth protecting.
 
-```bash
-llama-server -hf ggml-org/gemma-4-E4B-it-GGUF --port 8081 \
-  -c 16384 -fa on -ctk q8_0 -ctv q8_0 -ngl 99 --jinja \
-  --cache-reuse 256 --slot-save-path ~/.cache/abtc-kv --parallel 1
-```
+Serving flags: see §8 (the three-process form this section used to show is obsolete).
 
 On first entry to a window: prime, then `POST /slots/0?action=save` keyed on
 `worldId + windowId + hash(capabilities, prefs)`. On re-entry: `action=restore`. A ~3 s prefill
@@ -392,6 +472,25 @@ becomes a ~50 ms disk read, and users revisit windows constantly.
 
 **Do not trim from the middle of the history** — that invalidates the prefix from the deletion point
 on. Cap turns from the tail, or keep a rolling summary.
+
+**Anything that varies per utterance goes AFTER everything that does not.** This is the single
+highest-leverage rule in the document and it is easy to violate by accident. The §4.3 candidate block
+changes every turn; putting it in the system message invalidates the system prompt *and* all twelve
+tool schemas behind it. Measured over five utterances:
+
+| candidate block placement | KV cache reuse | mean latency |
+|---|---|---|
+| inside the system message | **0%** | 11.8 s |
+| in the user turn | **95%** | **5.7 s** |
+
+Identical tokens, identical tools, identical accuracy. **2× latency purely from message placement.**
+
+The catch: moving it out of the system message initially cost accuracy (5/5 → 3/5), because in the
+user turn the list reads as if the *user* supplied it and loses instructional authority. Two changes
+recovered it — state in the system prompt that the ranking is authoritative and pre-computed, and
+tell the model not to ask which place was meant when a candidate plausibly matches. See
+`buildSystemPrompt` / `buildUserTurn` in `src/lib/candidateContext.js`; the split between them is
+exactly this stable/volatile boundary.
 
 ### 6.2 Semantic plan cache — EmbeddingGemma
 
@@ -428,8 +527,93 @@ That last row matters: bounds discovery is ~15–20 s of probing per map. Cache 
 
 ### 6.4 Place embedding index
 
+**Implemented** — `src/lib/placeIndex.js` (milestone 8).
+
 Per (world, window), persisted to IndexedDB. Rebuild on window change; evict LRU past ~20. Worth
 precomputing at build time for demo areas.
+
+Implementation notes worth keeping:
+
+- Vectors persist as **one flat `Float32Array`**, not N small arrays. Structured-clone handles typed
+  arrays natively and one 768×N buffer is far cheaper to store and reload.
+- `RECORD_VERSION` gates reuse. Change the embedded document text and you **must** bump it: a store
+  holding two encodings ranks badly rather than failing loudly, which is far worse than a rebuild.
+- In-flight builds are deduped, so a burst of window changes embeds once.
+- The storage layer is injectable (`MemoryStore` / `IndexedDBStore`) so retrieval is testable in
+  Node, which has no IndexedDB.
+
+**Use EmbeddingGemma's task prefixes.** They are not cosmetic. Query
+`task: search result | query: {text}`, document `title: {name} | text: {text}`. Measured on
+"the Korean place" against four POIs:
+
+| | top-1 | top-2 | margin | margin/top-1 |
+|---|---|---|---|---|
+| bare strings | 0.640 | 0.461 | 0.179 | 28% |
+| prefixed | 0.416 | 0.215 | 0.201 | **48%** |
+
+Nearly double the relative separation — but note the absolute compression, which is what invalidated
+the §4 threshold.
+
+#### What goes in a place document
+
+⚠️ **Rev 2 said `f"{name}. {category}. {context}"`. That throws away most of the data.** Every POI in
+the camio `new_york` model also carries `location_description` (50/50), `accessibility` (50/50),
+`opening_hours`, `building`, `coords` and `edge`. Measured precision@5 against the structured fields
+with the richer document:
+
+| query | correct | base rate | lift |
+|---|---|---|---|
+| "somewhere with tactile paving" | 2/5 | 4% | **10.0×** |
+| "a place with an elevator" | 3/5 | 6% | **10.0×** |
+| "what is on 5th Avenue" | 5/5 | 12% | 8.3× |
+| "somewhere wheelchair accessible" | 5/5 | 46% | 2.2× |
+
+The first two rows are the proof that this is retrieval and not recall of a prior: only **two** POIs
+in the model have tactile paving and only **three** have an elevator, and the queries surface all of
+them at the top. That fact exists nowhere except the document text.
+
+The last row is the counter-lesson: **do not embed near-universal attributes.** `wheelchair_accessible`
+is true for 24/50 POIs, so the query barely beats chance while costing tokens and diluting the vector.
+Roughly a third base rate is the point where an attribute stops earning its place.
+
+Include `accessibility` on principle as well as measurement — this is a tactile map for blind users,
+and the Empire State Building's record literally reads *"tactile map: near the entrance, following
+the tactile paving"*. That is exactly what someone needs to be able to ask for.
+
+#### The embedding does not override the map data
+
+A reasonable worry is that EmbeddingGemma's world knowledge dominates the local tags. Tested
+adversarially by mislabelling two POIs — Starbucks tagged `financial.bank, atm`, and Cooper Electric
+(an electrical supplier) tagged `cafe.coffee`:
+
+```
+"where can I get coffee"  → Cooper Electric 0.451 | Blank Slate 0.379 | Starbucks 0.332
+"I need an ATM"           → Starbucks 0.331 | Cooper Electric 0.056 | Blank Slate -0.003
+```
+
+The tags win in both directions. The consequence cuts the other way too: **bad tags produce
+confidently wrong retrieval with no sanity check.** Data quality flows straight through.
+
+#### `coords` and `edge` are deliberately excluded — do not add them
+
+Geometry is not this layer's job, and cosine similarity cannot represent distance:
+
+```
+L1          resolves the NAME       "the Korean place" → BCD Tofu House
+dispatcher  supplies the POSITION   injectedContext.uv — never from the model
+tool        computes the GEOMETRY   get_distance_to, get_direction_to,
+                                    describe_surroundings, whats_here
+```
+
+`describe_surroundings` takes only `radius` and `category` and is answered from `uv` against the
+graph. `whats_here` takes no arguments at all and is answered at L0 from the last `featureEntered`
+payload. Re-ranking this index by proximity would duplicate the adapter inside a structure that
+cannot express what it needs.
+
+One caveat on the enriched document: `location_description` is spatial **prose** (*"between the
+intersection with West 33rd Street and ..."*), which makes queries like "between 33rd and 34th" rank
+well. That is legitimate as *name resolution* — the user is describing which place they mean. It must
+never be the source of an actual distance or bearing.
 
 ---
 
@@ -505,51 +689,111 @@ after training silently degrades routing.
 
 ## 8. Serving
 
-```bash
-# L3 — reasoning + narration (text/vision/audio via mmproj)
-llama-server -hf ggml-org/gemma-4-E4B-it-GGUF --port 8081 \
-  -c 16384 -fa on -ctk q8_0 -ctv q8_0 -ngl 99 --jinja \
-  --cache-reuse 256 --slot-save-path ~/.cache/abtc-kv --parallel 1
+⚠️ **Rev 2 showed three `llama-server` processes on ports 8081–8083. That is obsolete.** Current
+llama.cpp has a **router mode**: one process, one port, tiers selected by the OpenAI `model` field,
+loaded on demand and slept when idle. That is what makes the budget work on 8 GB.
 
-# L1 — retrieval, place resolution, plan cache
-llama-server -m embeddinggemma-308m.gguf --port 8082 --embedding -c 2048
+Config lives in `~/.config/abtc/models.ini` (INI keys are llama.cpp long options minus the `--`):
 
-# L2 — tool-call formatting
-llama-server -m functiongemma-270m-abtc.gguf --port 8083 -c 4096 --jinja
+```ini
+[l3]
+hf-repo           = unsloth/gemma-4-e4b-it-qat-GGUF:UD-Q4_K_XL
+ctx-size          = 8192
+flash-attn        = on
+cache-type-k      = q8_0
+cache-type-v      = q8_0
+gpu-layers        = 99
+parallel          = 1
+cache-reuse       = 256
+slot-save-path    = /Users/<you>/.cache/abtc-kv
+no-mmproj-offload = true
+
+[l1]
+hf-repo   = ggml-org/embeddinggemma-300M-GGUF   # capital M; lowercase 307-redirects
+ctx-size  = 2048
+embedding = true
 ```
 
-8 GB budget: E4B Q4 + mmproj ≈ 4.5 GB, EmbeddingGemma ≈ 0.3 GB, FunctionGemma ≈ 0.2 GB, 16 K KV at
-q8 ≈ 0.8 GB → ≈ 5.8 GB. Fits, with little room for macOS. `--no-mmproj-offload` on the small models
-if you hit swap. Reach the Mac over the existing SSH tunnel; Vite proxies `/llm/*` to
-`127.0.0.1:11434`, so no CORS and no key in the browser.
+Launched by `~/.local/bin/start-ai`, which router-mounts both tiers:
+
+```bash
+llama serve --models-preset ~/.config/abtc/models.ini \
+  --models-max 2 --models-autoload --sleep-idle-seconds 600 \
+  --host 127.0.0.1 --port 8081
+```
+
+**Budget, measured on an 8 GB M1 (6144 MiB Metal working set):**
+
+| | |
+|---|---|
+| E4B QAT Q4_K_XL | 3.93 GiB |
+| mmproj BF16 | 0.92 GiB — kept off the GPU by `no-mmproj-offload` |
+| KV, 8192 @ q8 | ~0.40 GiB |
+| cold load → first token | 10.8 s |
+| steady-state generation | **16 tok/s** |
+
+`--models-max 2` caps residency; `--sleep-idle-seconds` releases it. L2 is deliberately absent from
+the INI until milestone 14 — the router pages it in on demand rather than holding it resident.
+
+**Bind loopback, tunnel in.** The server sets CORS `*` and has no API key, and says so on startup.
+`ssh -L 8081:127.0.0.1:8081 <mac>`; Vite proxies `/llm` → `127.0.0.1:8081` (one target, not three).
 
 **Use grammars, not hope.** Send `response_format: {"type":"json_schema", …}` or a raw GBNF
 `grammar` for every tool call. Worth being precise: **GBNF guarantees the call is *valid*;
 FunctionGemma improves the odds it's the *right* call.** Different problems; you want both.
 
+### 8.0 Reasoning must be disabled, and `reasoning_budget` will not do it
+
+Gemma 4 emits chain-of-thought by default. With `tools` in the payload this is **fatal, not merely
+slow** — the CoT consumes the whole token budget and no call is ever emitted. Measured on "Tell me
+about Cafe China" with the full 12-tool schema:
+
+| request field | tokens | finish_reason | tool call |
+|---|---|---|---|
+| `reasoning_budget: 0` | 256 | `length` | **none** |
+| `chat_template_kwargs: {"enable_thinking": false}` | **18** | `tool_calls` | correct |
+| (reasoning on, 768 max) | 495 | `tool_calls` | correct |
+
+**`reasoning_budget` is silently ignored once `tools` is present.** It works fine without tools,
+which is exactly how you get fooled. Always send `chat_template_kwargs: {"enable_thinking": false}`
+for tool-calling turns. Leaving reasoning on costs ~27× the tokens — at 16 tok/s that is ~31 s
+against a 1–3 s target.
+
 ### 8.1 Audio
 
-Gemma 4 E4B accepts audio through the same `--mmproj` path as images, so it can replace a separate
-STT service. For `starter`, start with the browser's Web Speech API — `TactileExplorerGeneric.jsx:38`
-already uses `speechSynthesis`, the recognition side is symmetric, and it costs zero VRAM on a
-machine that has none spare. Fall back to `Qwen3-ASR-0.6B` with a biasing list of in-window street
-names only if Web Speech proves inadequate on proper nouns, which it may.
+⚠️ **Rev 2 said to start with the browser's Web Speech API because "the recognition side is
+symmetric" with `speechSynthesis`. That is wrong and it breaks the local-only premise.**
+`speechSynthesis` (TTS) runs on-device; `SpeechRecognition` (STT) ships audio to Google's or Apple's
+servers. They are not symmetric.
+
+Use the mmproj instead — it is already downloaded and it carries **both** encoders:
+
+```
+clip.has_audio_encoder     clip.has_vision_encoder
+clip.audio.num_mel_bins    clip.vision.image_size
+```
+
+So audio-in costs no extra model, only the 0.92 GiB projector already budgeted in §8, and it stays
+local. Verified loading: llama.cpp reports `init_audio: audio input is in experimental stage and may
+may have reduced quality` — so **validate transcription on street names before committing**; proper
+nouns are exactly the weakness. `Qwen3-ASR-0.6B` with an in-window biasing list remains the fallback,
+but it costs memory this machine does not have spare.
 
 ---
 
 ## 9. Build order
 
-| # | Milestone | Gates |
-|---|---|---|
-| 1 | `Surface` abstraction — (u,v), acuityCell, aspect negotiation (§2) | — |
-| 2 | `WorldAdapter` interface + capability negotiation (§3.4–3.5) | — |
-| 3 | `LocalLLMClient` — streaming, GBNF, no tools | — |
-| 4 | `OsmWorldAdapter` (places only, from the polygons file) | 2 |
-| 5 | `AudiomWorldAdapter` tier A/C + persistent bounds cache | 2 |
-| 6 | `CamioWorldAdapter` — template/colorMap/hotspots | 2 |
-| 7 | `ToolRegistry` + dispatcher, tools 1–6 | 3, 4 |
-| 8 | `PlaceIndex` — EmbeddingGemma + IndexedDB | 3 |
-| 9 | `SemanticPlanCache` (§6.2) | 1, 8 |
+| # | Milestone | Gates | Status |
+|---|---|---|---|
+| 1 | `Surface` abstraction — (u,v), acuityCell, aspect negotiation (§2) | — | |
+| 2 | `WorldAdapter` interface + capability negotiation (§3.4–3.5) | — | |
+| 3 | `LocalLLMClient` — streaming, GBNF, no tools | — | **partial** — embeddings half done (`src/lib/localLLM.js`); streaming, GBNF and the tool loop still missing |
+| 4 | `OsmWorldAdapter` (places only, from the polygons file) | 2 | |
+| 5 | `AudiomWorldAdapter` tier A/C + persistent bounds cache | 2 | |
+| 6 | `CamioWorldAdapter` — template/colorMap/hotspots | 2 | |
+| 7 | `ToolRegistry` + dispatcher, tools 1–6 | 3, 4 | |
+| 8 | `PlaceIndex` — EmbeddingGemma + IndexedDB | 3 | **done** — `src/lib/placeIndex.js`, `src/lib/candidateContext.js` |
+| 9 | `SemanticPlanCache` (§6.2) | 1, 8 | |
 | 10 | OpenSidewalks tiling pipeline | — |
 | 11 | Accessibility tools 7–9 | 10 |
 | 12 | `RouteProvider` — AccessMap impl (exists), then local A* | 10 |
@@ -582,9 +826,25 @@ Start it early despite being unglamorous.
 else. Be explicit in the UI about which tier a session is in — a user who gets routing on one map
 and not another, with no explanation, will reasonably conclude the app is broken.
 
-**Place resolution is the accuracy ceiling.** If L1 picks the wrong Walgreens, every downstream tool
-is confidently wrong. Instrument top-1/top-3 recall on ~200 hand-labelled utterances *before*
-investing in FunctionGemma. L1 errors dominate L2 errors.
+**Place resolution is the accuracy ceiling — but measure it as recall@k.** If L1 drops the right
+Walgreens out of the top-k entirely, every downstream tool is confidently wrong. Instrument
+**recall@5** on ~200 hand-labelled utterances *before* investing in FunctionGemma. Do **not**
+instrument top-1: rev-3 measurements put recall@1 at 1/5 and recall@5 at 5/5 on the same queries,
+because several candidates are routinely equally valid (five banks for "I need an ATM").
+
+⚠️ **Revised: on current evidence L3 errors dominate L1 errors, not the reverse.** End-to-end, L1
+returned a correct candidate set every time; the failures were all L3 mishandling it — see §4.3. The
+rev-2 claim that "L1 errors dominate L2 errors" is untested and should not be relied on.
+
+**Everything measured in rev 3 rests on 5–11 cases.** Enough to establish direction and to kill the
+gating idea; nowhere near enough to call any constant settled. The 21-case `eval_dataset.json` has
+not yet been run through the §4.3 prompt path — `eval_tools.py` still uses its own flat system
+prompt, so the two harnesses currently measure different things. Reconcile them before trusting any
+number here as a baseline.
+
+**Enrichment is validated on camio only.** `fromCamioPoi()` is shaped to that source. The OSM and
+Audiom adapters expose different fields, and the base-rate rule from §6.4 (drop attributes held by
+more than roughly a third of places) must be re-derived per world, not copied.
 
 **Stale accessibility data is a safety issue.** OpenSidewalks curb and crossing attributes can be
 years old. `get_crossing_info` must return provenance and age, and narration must hedge. Never let
@@ -593,3 +853,84 @@ the model state flatly that a crossing has a curb ramp.
 **Prompt injection.** `name` and `opening_hours` come from OSM; Audiom feature names come from
 arbitrary user-authored maps. Treat every place-derived string as untrusted data inside a delimited
 block, never as instructions.
+
+---
+
+## 11. How to reproduce every number in this document
+
+Everything below runs against the local stack with no API keys, no camera, and no cloud.
+
+### 11.1 Prerequisites
+
+```bash
+start-ai                       # router on 127.0.0.1:8081 (or the LaunchDaemon is already serving)
+curl -s http://127.0.0.1:8081/v1/models | python3 -m json.tool
+```
+
+Expect `l1` and `l3`, plus one auto-discovered entry per cached HuggingFace repo — four rows in
+total is normal, not a misconfiguration.
+
+**Never send a chat completion to `l1`.** It is embeddings-only and returns `the current context
+does not logits computation. skipping`. That error — including when it appears in llama.cpp's own
+WebUI, whose model picker defaults to the alphabetically first entry — always means the wrong tier
+was selected, never a broken server. For the same reason, any harness that auto-selects
+`models[0]` will pick `l1` and fail every case; `eval_tools.py` defaults to `l3` and refuses an
+embeddings tier outright.
+
+From another machine, forward first and point the tools at the tunnel:
+
+```bash
+ssh -L 8081:127.0.0.1:8081 <mac>
+```
+
+### 11.2 The checks
+
+| what it proves | command |
+|---|---|
+| §6.4 index build, recall@k, LRU eviction | `node starter/scripts/test_place_index.mjs` |
+| §4.3 end-to-end L1 → candidates → L3 tool call | `node starter/scripts/test_candidate_prompt.mjs` |
+| §5 tool selection over the full dataset | `python3 starter/scripts/eval_tools.py --simulate-loop` |
+
+Both `.mjs` scripts exit non-zero on regression and take `VITE_LLM_BASE` to retarget the server.
+`test_candidate_prompt.mjs` marks one case `HARD` and excludes it from the gate — "am I at the
+observation deck", where the linking tag is absent from the record and E4B declines rather than
+guesses. It passes only with the candidate block in the system message, at 5.6× the latency (§6.1).
+
+### 11.3 Checking the serving assumptions
+
+```bash
+# §8 memory: what Metal will actually give you
+llama serve --list-devices
+llama fit-params -hf unsloth/gemma-4-e4b-it-qat-GGUF:UD-Q4_K_XL -c 8192
+
+# §8.1 the mmproj really does carry an audio encoder
+head -c 3000000 ~/.cache/huggingface/hub/models--unsloth--gemma-4-e4b-it-qat-GGUF/snapshots/*/mmproj-BF16.gguf \
+  | strings | grep -iE 'clip.has_(audio|vision)_encoder'
+```
+
+### 11.4 Re-deriving the tuning constants
+
+These are the numbers most likely to be wrong on a different model, quantisation, or world. Each is
+a small script against `/v1/embeddings` and `/v1/chat/completions`:
+
+- **§4 relative-margin threshold** — embed a labelled query set, histogram `(top1−top2)/top1` for
+  correct vs incorrect top-1, pick the separating value. Do not reuse 0.15 blindly.
+- **§6.4 base-rate cutoff** — for each candidate attribute, compute its prevalence and its
+  precision@5 lift. Drop anything whose lift approaches 1.0; on the camio model that was everything
+  above roughly a third prevalence.
+- **§6.1 placement** — send the same five utterances with the volatile block in the system message
+  and then in the user turn, and read `usage.prompt_tokens_details.cached_tokens` from each response.
+  0% versus ~95% is unmissable.
+- **§4.3 prompt variants** — A/B the system prompt across a fixed case set, reporting both accuracy
+  and mean latency. A variant that wins on accuracy and loses 3× on latency is not a win.
+
+### 11.5 Cross-checking against MapIO
+
+MapIO's real tool schemas can be extracted **without** installing `openai`, without `.env`, and
+without a camera — they are literal expression trees in `simple_camio@llm:src/llm/tool_calls.py`.
+Parse them with `ast`, resolving the `ToolCall` StrEnum members and the `Graph.NEARBY_THRESHOLD`
+f-string interpolation from `src/graph/graph.py`. Serving those 8 schemas to `l3` scored 4/4 on
+name→index resolution, which is a useful sanity check that the local model is not the weak link.
+
+Note that MapIO's tools take `poi_index` and raw `x`/`y`, where this design passes resolved names
+(§4.2). The local model handles both, so that is a free design choice rather than a constraint.
