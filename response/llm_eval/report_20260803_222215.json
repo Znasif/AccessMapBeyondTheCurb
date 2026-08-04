@@ -1,0 +1,250 @@
+{
+  "timestamp": "20260803_222215",
+  "server": "http://127.0.0.1:8081/v1",
+  "model": "l3",
+  "reasoning": false,
+  "profile_filter": "all",
+  "results": [
+    {
+      "id": "P03",
+      "utterance": "Tell me about Cafe China.",
+      "profile": "osm_full",
+      "expected_tool": "get_place_details",
+      "expected_args": {
+        "place": "Cafe China"
+      },
+      "elapsed_sec": 13.575,
+      "http_success": true,
+      "called_tool": "get_place_details",
+      "called_args": {
+        "place": "Cafe China"
+      },
+      "tool_match": true,
+      "args_match": true,
+      "false_positive": false,
+      "capability_violation": false,
+      "narration": "Cafe China is a building that is open from 09:00 to 22:00. It is accessible, featuring a wheelchair ramp at the main entrance.",
+      "loop_success": true,
+      "raw_response": {
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "type": "function",
+                  "function": {
+                    "name": "get_place_details",
+                    "arguments": "{\"place\":\"Cafe China\"}"
+                  },
+                  "id": "lTKmOVRSjXXJenf7YoyQAJTEsRHndtZX"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 1785820904,
+        "model": "l3",
+        "system_fingerprint": "b10098-0278d8362",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 18,
+          "prompt_tokens": 1673,
+          "total_tokens": 1691,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "id": "chatcmpl-dmmBRb7BM5sG8Wg8KRZQhr3iarkCtzTn",
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 1673,
+          "prompt_ms": 8833.378,
+          "prompt_per_token_ms": 5.279962940824866,
+          "prompt_per_second": 189.39526871826382,
+          "predicted_n": 18,
+          "predicted_ms": 1364.662,
+          "predicted_per_token_ms": 75.81455555555556,
+          "predicted_per_second": 13.19007930168789
+        }
+      }
+    },
+    {
+      "id": "P10",
+      "utterance": "Take me to Cafe China.",
+      "profile": "osm_full",
+      "expected_tool": "route_to",
+      "expected_args": {
+        "place": "Cafe China"
+      },
+      "elapsed_sec": 11.695,
+      "http_success": true,
+      "called_tool": "route_to",
+      "called_args": {
+        "mode": "street_by_street",
+        "place": "Cafe China"
+      },
+      "tool_match": true,
+      "args_match": true,
+      "false_positive": false,
+      "capability_violation": false,
+      "narration": "",
+      "loop_success": true,
+      "raw_response": {
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "type": "function",
+                  "function": {
+                    "name": "route_to",
+                    "arguments": "{\"mode\":\"street_by_street\",\"place\":\"Cafe China\"}"
+                  },
+                  "id": "6sZUX3YcSMco3PblqjjUdKQ5w9HMYDtR"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 1785820918,
+        "model": "l3",
+        "system_fingerprint": "b10098-0278d8362",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 26,
+          "prompt_tokens": 1663,
+          "total_tokens": 1689,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "id": "chatcmpl-jhukf7xeLeL9oTbf3osESPFckMdzSfEc",
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 1663,
+          "prompt_ms": 8673.602,
+          "prompt_per_token_ms": 5.215635598316297,
+          "prompt_per_second": 191.73118619000502,
+          "predicted_n": 26,
+          "predicted_ms": 2008.893,
+          "predicted_per_token_ms": 77.26511538461538,
+          "predicted_per_second": 12.942451389894833
+        }
+      }
+    },
+    {
+      "id": "X01",
+      "utterance": "How steep is this block?",
+      "profile": "camio",
+      "expected_tool": null,
+      "expected_args": null,
+      "elapsed_sec": 6.998,
+      "http_success": true,
+      "called_tool": null,
+      "called_args": null,
+      "tool_match": true,
+      "args_match": true,
+      "false_positive": false,
+      "capability_violation": false,
+      "narration": "I can tell you what you are touching, but I do not have information about the steepness of the block.",
+      "loop_success": true,
+      "raw_response": {
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "I can tell you what you are touching, but I do not have information about the steepness of the block."
+            }
+          }
+        ],
+        "created": 1785820926,
+        "model": "l3",
+        "system_fingerprint": "b10098-0278d8362",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 24,
+          "prompt_tokens": 989,
+          "total_tokens": 1013,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "id": "chatcmpl-dm36VLk44158DgcBU3dak2MBMVaPpGqH",
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 989,
+          "prompt_ms": 5275.499,
+          "prompt_per_token_ms": 5.334174924165824,
+          "prompt_per_second": 187.4704174903644,
+          "predicted_n": 24,
+          "predicted_ms": 1672.592,
+          "predicted_per_token_ms": 69.69133333333333,
+          "predicted_per_second": 14.34898648325473
+        }
+      }
+    },
+    {
+      "id": "N01",
+      "utterance": "Hello, who are you?",
+      "profile": "osm_full",
+      "expected_tool": null,
+      "expected_args": null,
+      "elapsed_sec": 8.798,
+      "http_success": true,
+      "called_tool": null,
+      "called_args": null,
+      "tool_match": true,
+      "args_match": true,
+      "false_positive": false,
+      "capability_violation": false,
+      "narration": "I am an AI assistant for a tactile map exploration application. I can help you understand what you are touching, describe your surroundings, and guide you to places on the map! How can I assist you today?",
+      "loop_success": true,
+      "raw_response": {
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "I am an AI assistant for a tactile map exploration application. I can help you understand what you are touching, describe your surroundings, and guide you to places on the map! How can I assist you today?"
+            }
+          }
+        ],
+        "created": 1785820935,
+        "model": "l3",
+        "system_fingerprint": "b10098-0278d8362",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 43,
+          "prompt_tokens": 1651,
+          "total_tokens": 1694,
+          "prompt_tokens_details": {
+            "cached_tokens": 703
+          }
+        },
+        "id": "chatcmpl-xpCSDDWnuCqSB9BgPxgz3TmsxNpI49uT",
+        "timings": {
+          "cache_n": 703,
+          "prompt_n": 948,
+          "prompt_ms": 5356.08,
+          "prompt_per_token_ms": 5.649873417721519,
+          "prompt_per_second": 176.99511583098086,
+          "predicted_n": 43,
+          "predicted_ms": 3369.956,
+          "predicted_per_token_ms": 78.37106976744187,
+          "predicted_per_second": 12.759810513846473
+        }
+      }
+    }
+  ]
+}

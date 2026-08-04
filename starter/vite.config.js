@@ -101,5 +101,24 @@ export default defineConfig(async () => ({
     // On plain http://localhost:5173 this must stay default or the client tries
     // wss://localhost and the page silently loses its dev connection.
     hmr: process.env.VITE_TUNNEL ? { clientPort: 443, protocol: 'wss' } : true,
+    proxy: {
+      // Local LLM router. One target, not three: the llama.cpp router serves
+      // every tier from a single port and selects between them with the OpenAI
+      // `model` field ("l1" embeddings, "l3" reasoning).
+      //
+      // Proxying rather than calling the server directly keeps the browser on
+      // the same origin — the server sets CORS to '*' and has no API key, so it
+      // must never be reachable from a page directly.
+      //
+      // Default target is loopback because the Mac runs the daemon locally. When
+      // developing against it from another machine, forward the port first
+      //     ssh -L 8081:127.0.0.1:8081 <mac>
+      // and leave this alone, or set VITE_LLM_TARGET.
+      '/llm': {
+        target: process.env.VITE_LLM_TARGET || 'http://127.0.0.1:8081',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/llm/, ''),
+      },
+    },
   },
 }));

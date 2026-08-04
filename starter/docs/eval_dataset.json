@@ -1,0 +1,179 @@
+[
+  {
+    "id": "P01",
+    "capability_profile": "osm_full",
+    "utterance": "What am I touching right now?",
+    "expected_tool": "whats_here",
+    "expected_args": {},
+    "context": {}
+  },
+  {
+    "id": "P02",
+    "capability_profile": "osm_full",
+    "utterance": "What's around me?",
+    "expected_tool": "describe_surroundings",
+    "expected_args": null,
+    "context": {}
+  },
+  {
+    "id": "P03",
+    "capability_profile": "osm_full",
+    "utterance": "Tell me about Cafe China.",
+    "expected_tool": "get_place_details",
+    "expected_args": { "place": "Cafe China" },
+    "context": { "resolved_places": ["Cafe China", "Cafe R", "BCD Tofu House"] }
+  },
+  {
+    "id": "P04",
+    "capability_profile": "osm_full",
+    "utterance": "Am I at the Bank of America?",
+    "expected_tool": "am_i_at",
+    "expected_args": { "place": "Bank of America" },
+    "context": { "resolved_places": ["Bank of America", "Bank of Hope"] }
+  },
+  {
+    "id": "P05",
+    "capability_profile": "osm_full",
+    "utterance": "How far is BCD Tofu House from here?",
+    "expected_tool": "get_distance_to",
+    "expected_args": { "place": "BCD Tofu House" },
+    "context": { "resolved_places": ["BCD Tofu House", "Barn Joo 35"] }
+  },
+  {
+    "id": "P06",
+    "capability_profile": "osm_full",
+    "utterance": "Which way is Blaggards Pub?",
+    "expected_tool": "get_direction_to",
+    "expected_args": { "place": "Blaggards Pub" },
+    "context": { "resolved_places": ["Blaggards Pub", "Blank Slate Coffee + Kitchen"] }
+  },
+  {
+    "id": "P07",
+    "capability_profile": "osm_full",
+    "utterance": "Does this crossing have a curb ramp?",
+    "expected_tool": "get_crossing_info",
+    "expected_args": null,
+    "context": {}
+  },
+  {
+    "id": "P08",
+    "capability_profile": "osm_full",
+    "utterance": "How steep is this block?",
+    "expected_tool": "get_segment_accessibility",
+    "expected_args": null,
+    "context": {}
+  },
+  {
+    "id": "P09",
+    "capability_profile": "osm_full",
+    "utterance": "Where is the wheelchair accessible entrance to Cafe China?",
+    "expected_tool": "find_accessible_entrance",
+    "expected_args": { "place": "Cafe China" },
+    "context": { "resolved_places": ["Cafe China"] }
+  },
+  {
+    "id": "P10",
+    "capability_profile": "osm_full",
+    "utterance": "Take me to Cafe China.",
+    "expected_tool": "route_to",
+    "expected_args": { "place": "Cafe China" },
+    "context": { "resolved_places": ["Cafe China"] }
+  },
+  {
+    "id": "P11",
+    "capability_profile": "osm_full",
+    "utterance": "Stop navigating.",
+    "expected_tool": "stop_navigation",
+    "expected_args": null,
+    "context": {}
+  },
+  {
+    "id": "P12",
+    "capability_profile": "osm_full",
+    "utterance": "Avoid steep hills when you route me.",
+    "expected_tool": "set_route_preferences",
+    "expected_args": null,
+    "context": {}
+  },
+
+  {
+    "id": "C01",
+    "capability_profile": "audiom_tier_c",
+    "utterance": "Fly me to Blaggards Pub.",
+    "expected_tool": "route_to",
+    "expected_args": { "place": "Blaggards Pub", "mode": "fly_me_there" },
+    "context": { "resolved_places": ["Blaggards Pub"] }
+  },
+  {
+    "id": "C02",
+    "capability_profile": "audiom_tier_c",
+    "utterance": "What's near me?",
+    "expected_tool": "describe_surroundings",
+    "expected_args": null,
+    "context": {}
+  },
+
+  {
+    "id": "M01",
+    "capability_profile": "camio",
+    "utterance": "What is this feature under my finger?",
+    "expected_tool": "whats_here",
+    "expected_args": {},
+    "context": {}
+  },
+  {
+    "id": "M02",
+    "capability_profile": "camio",
+    "utterance": "Tell me more about the American Academy of Dramatic Arts.",
+    "expected_tool": "get_place_details",
+    "expected_args": { "place": "American Academy of Dramatic Arts" },
+    "context": { "resolved_places": ["American Academy of Dramatic Arts"] }
+  },
+
+  {
+    "id": "X01",
+    "capability_profile": "camio",
+    "utterance": "How steep is this block?",
+    "expected_tool": null,
+    "expected_args": null,
+    "context": {},
+    "$note": "Capability probe: get_segment_accessibility requires accessibilityAttrs, which the camio profile does not have. The tool must not be offered, and the model must decline rather than hallucinate it."
+  },
+  {
+    "id": "X02",
+    "capability_profile": "osm_places_only",
+    "utterance": "Does this crossing have an audible signal?",
+    "expected_tool": null,
+    "expected_args": null,
+    "context": {},
+    "$note": "Same probe against the pre-OpenSidewalks profile."
+  },
+
+  {
+    "id": "N01",
+    "capability_profile": "osm_full",
+    "utterance": "Hello, who are you?",
+    "expected_tool": null,
+    "expected_args": null,
+    "context": {},
+    "$note": "Negative: plain conversation, no tool."
+  },
+  {
+    "id": "N02",
+    "capability_profile": "osm_full",
+    "utterance": "Thanks, that was helpful.",
+    "expected_tool": null,
+    "expected_args": null,
+    "context": {},
+    "$note": "Negative: social closer, no tool."
+  },
+  {
+    "id": "N03",
+    "capability_profile": "osm_full",
+    "utterance": "Pause.",
+    "expected_tool": null,
+    "expected_args": null,
+    "context": {},
+    "$note": "Negative: L0 deterministic layer owns pause/resume. If L3 ever sees this the router upstream is wrong, but it still must not invent a tool."
+  }
+]
