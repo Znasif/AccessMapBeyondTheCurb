@@ -732,6 +732,19 @@ llama serve --models-preset ~/.config/abtc/models.ini \
 | cold load → first token | 10.8 s |
 | steady-state generation | **16 tok/s** |
 
+**`ctx-size = 8192` is a ceiling, not a tuning choice — do not raise it to fit a bigger prompt.**
+The full MapIO-style prompt for the `new_york` model is ~11,073 tokens (§4.2), and the tempting
+fix — a 16 K window, which the old three-process setup guide actually shipped — does not work on
+this machine. The whole machine has 8 GB unified memory, of which macOS keeps ~2 GB and Metal
+grants a ~6 GiB working set. The model alone is 3.93 GiB, and q8 KV scales linearly with context:
+~0.40 GiB at 8192 becomes ~0.8 GiB at 16384, and compute buffers grow with it — past the working
+set and into swap, alongside the L1 tier that must stay resident for retrieval. Even if it fit, an
+~11 K-token prefill at M1 speeds costs tens of seconds before the first token on every cold window.
+This constraint is not an inconvenience to engineer around; it is **why the L1 → L3 architecture
+exists**: EmbeddingGemma curates ~27 tokens of ranked candidates (§4.2) precisely because the full
+context can never be sent. Any experiment that "temporarily" serializes the whole graph into the
+prompt — including MapIO parity testing — is measuring a configuration this hardware cannot run.
+
 `--models-max 2` caps residency; `--sleep-idle-seconds` releases it. L2 is deliberately absent from
 the INI until milestone 14 — the router pages it in on demand rather than holding it resident.
 
