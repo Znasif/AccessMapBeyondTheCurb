@@ -282,7 +282,7 @@ export function TactileExplorer({
         setGestureHint(hint);
       }
 
-      // ── SIFT + homography (every 6 frames) ─────────────────────────
+      // ── AKAZE + homography (every 6 frames) ────────────────────────
       st.tick++;
       if (!isFixedRef.current && st.tick % 6 === 0 && st.descTpl?.rows > 0) {
         const frameMat  = cv.imread(off);

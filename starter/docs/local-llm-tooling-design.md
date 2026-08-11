@@ -4,8 +4,19 @@
 Gemma stack (llama.cpp on an 8 GB M1), with prompt and tool-call caching handled by
 EmbeddingGemma and FunctionGemma.
 
-**Status:** revision 3. Milestone 8 implemented and measured; milestone 3 partially
-(embeddings only). Everything else still design.
+**Status:** revision 4. Milestones 1, 2, 3, 6, 8 implemented and tested; 5 partial (Tier A
+reads done and live-verified, side-effect channel pending); the `simple_camio_llm` logic
+port (plan milestone P) done. Live milestone table:
+[`browser-voice-exploration-plan.md`](./browser-voice-exploration-plan.md) §5.
+
+> **Revision 4 (2026-08-10) is an implementation update, not a redesign.** Six milestones
+> landed as platform-free modules under `starter/src/lib/` with Node test suites
+> (`starter/scripts/test_*.mjs`, ~600 checks total). Corrections forced by implementation,
+> each fixed in place and marked ⚠️: the §3.5 tool counts (4 and 3 → **7**; the schema's
+> capability tags are authoritative), §2.2's A4 figure (artwork area, not sheet), and a
+> concrete confirmation that §6.4's base-rate rule must be re-derived per world — it
+> **inverts** on the first real Audiom map. §8.0's thinking-disable rule is now enforced
+> mechanically by the client rather than by discipline.
 
 > **Revision 3 is the first one with measurements in it.** The stack now runs, and several rev-2
 > numbers did not survive contact with it. Corrected in place, each marked ⚠️ with what was measured:
@@ -94,7 +105,9 @@ acuityRows  = floor(materialHeightMm / cellSizeMm)
 acuityCell  = floor(v * acuityRows) * acuityCols + floor(u * acuityCols)
 ```
 
-An A4 sheet at 2.5 mm gives ~108 × 76 ≈ 8,200 cells. Braille Doodle's 6.4 mm pitch dominates and
+An A4 sheet's printed artwork area (~270 × 190 mm — the four calibrated corners bound the
+artwork, not the sheet edge, per `lib/geo.js#shrinkBboxToGrid`) at 2.5 mm gives
+~108 × 76 ≈ 8,200 cells. Braille Doodle's 6.4 mm pitch dominates and
 gives back its 1,333. Monarch's ~3.2 mm pitch gives 3,840. Pre-printed paper gets the acuity floor.
 One formula, correct for all three, and it degrades to the device grid exactly when the device is
 coarser than the finger — which is the behaviour you want.
@@ -214,10 +227,13 @@ Capabilities: `places`, `graph`, `routing`, `accessibilityAttrs`, `entrances`, `
 The architecture review proposed EmbeddingGemma as a semantic router to shrink the tool schema
 block. **Capability negotiation does that job better, deterministically, and for free.**
 
-A `.camio` skeleton session declares `{places, regions}` and is offered 4 tools. An Audiom tier-C
-session declares `{places, liveFeatureStream}` and is offered 3. A full OSM session gets all 12. The
-schema block shrinks by construction, with no embedding call, no similarity threshold, and no
-possibility of routing to a tool that cannot run.
+A `.camio` skeleton session declares `{places, regions}` and is offered ⚠️ **7** tools; an
+Audiom tier-C session declares `{places, liveFeatureStream}` and is also offered **7** (rev 3
+said 4 and 3 — wrong: per the schema's own capability tags, `{places}` alone admits
+`whats_here` + five `places` tools + `route_to` narrowed to `fly_me_there`; implemented and
+tested in `src/lib/toolFilter.js`). A full OSM session gets all 12. The schema block shrinks
+by construction, with no embedding call, no similarity threshold, and no possibility of
+routing to a tool that cannot run.
 
 Semantic routing would have selected among tools that don't exist in the session. Capability
 filtering is strictly better here. Keep EmbeddingGemma for place resolution and the plan cache
@@ -770,7 +786,9 @@ about Cafe China" with the full 12-tool schema:
 **`reasoning_budget` is silently ignored once `tools` is present.** It works fine without tools,
 which is exactly how you get fooled. Always send `chat_template_kwargs: {"enable_thinking": false}`
 for tool-calling turns. Leaving reasoning on costs ~27× the tokens — at 16 tok/s that is ~31 s
-against a 1–3 s target.
+against a 1–3 s target. *(Rev 4: `src/lib/localLLM.js#chatCompletion` now injects this
+automatically whenever `tools` is present, and callers cannot override it — enforced by
+`test_tool_loop.mjs`.)*
 
 ### 8.1 Audio
 
@@ -798,12 +816,12 @@ but it costs memory this machine does not have spare.
 
 | # | Milestone | Gates | Status |
 |---|---|---|---|
-| 1 | `Surface` abstraction — (u,v), acuityCell, aspect negotiation (§2) | — | |
-| 2 | `WorldAdapter` interface + capability negotiation (§3.4–3.5) | — | |
-| 3 | `LocalLLMClient` — streaming, GBNF, no tools | — | **partial** — embeddings half done (`src/lib/localLLM.js`); streaming, GBNF and the tool loop still missing |
+| 1 | `Surface` abstraction — (u,v), acuityCell, aspect negotiation (§2) | — | **done** rev 4 — `src/lib/surface.js` (126 checks) |
+| 2 | `WorldAdapter` interface + capability negotiation (§3.4–3.5) | — | **done** rev 4 — `src/lib/worldAdapter.js` + `src/lib/toolFilter.js` |
+| 3 | `LocalLLMClient` — streaming, GBNF, no tools | — | **done** rev 4 — `chatCompletion` + `src/lib/toolLoop.js`; GBNF rides llama.cpp's own tools path; transport injectable for the wllama backend |
 | 4 | `OsmWorldAdapter` (places only, from the polygons file) | 2 | |
-| 5 | `AudiomWorldAdapter` tier A/C + persistent bounds cache | 2 | |
-| 6 | `CamioWorldAdapter` — template/colorMap/hotspots | 2 | |
+| 5 | `AudiomWorldAdapter` tier A/C + persistent bounds cache | 2 | **partial** rev 4 — Tier A done (`src/lib/adapters/audiomWorldAdapter.js`, live-verified on map 885); side-effect channel + tier-C probe migration pending |
+| 6 | `CamioWorldAdapter` — template/colorMap/hotspots | 2 | **done** rev 4 — `src/lib/adapters/camioWorldAdapter.js` (79 checks) |
 | 7 | `ToolRegistry` + dispatcher, tools 1–6 | 3, 4 | |
 | 8 | `PlaceIndex` — EmbeddingGemma + IndexedDB | 3 | **done** — `src/lib/placeIndex.js`, `src/lib/candidateContext.js` |
 | 9 | `SemanticPlanCache` (§6.2) | 1, 8 | |
@@ -857,7 +875,10 @@ number here as a baseline.
 
 **Enrichment is validated on camio only.** `fromCamioPoi()` is shaped to that source. The OSM and
 Audiom adapters expose different fields, and the base-rate rule from §6.4 (drop attributes held by
-more than roughly a third of places) must be re-derived per world, not copied.
+more than roughly a third of places) must be re-derived per world, not copied. *(Rev 4 confirmed
+this in the extreme: on Audiom map 885 the only classification props — `ruleName`, `briefing` —
+sit on ~100% of features, so the camio cutoff would discard that world's entire signal. The rule
+doesn't just need retuning there; it inverts.)*
 
 **Stale accessibility data is a safety issue.** OpenSidewalks curb and crossing attributes can be
 years old. `get_crossing_info` must return provenance and age, and narration must hedge. Never let
