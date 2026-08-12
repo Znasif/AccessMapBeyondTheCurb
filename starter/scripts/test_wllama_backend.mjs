@@ -214,14 +214,13 @@ const clientFor = (transport) => new LocalLLMClient({ transport });
     'KV config, not KV control: n_cache_reuse + n_ctx set at load (§8)',
     `${params.n_cache_reuse} / ${params.n_ctx}`);
   check(params.cache_idle_slots === true, 'cache_idle_slots keeps the warm slot the prefix lives in');
-  // MEASURED 2026-08-11: llama.cpp prints "cache_reuse is not supported by this
-  // context, it will be disabled" when it opens Gemma 4's interleaved-SWA
-  // context, so `n_cache_reuse` is inert here and `cache_prompt` + the slot
-  // cache are what actually carry §6.1's append-only prefix reuse. `swa_full`
-  // is the candidate fix and is deliberately OFF until someone measures it —
-  // this check exists so turning it on is a conscious act with a number behind
-  // it, not a drive-by "looks safer" edit.
-  check(params.swa_full === undefined, 'swa_full stays unset until the spike measures its effect on reuse',
+  // MEASURED 2026-08-12 on two machines (results/ in explore/wllama-spike, the
+  // flag as the only difference): on a prompt that diverges in a stable head —
+  // every new user turn — the default reuses 0 of 6363 tokens and `swa_full`
+  // reuses 6345, taking the M1 from 119.52 s to 2.37 s at no measurable memory
+  // cost. This check was the reverse until that ran; it now pins the flag ON so
+  // that dropping it is likewise a conscious act with a number behind it.
+  check(params.swa_full === true, 'swa_full ON — measured to carry divergent-head prefix reuse',
     String(params.swa_full));
 }
 

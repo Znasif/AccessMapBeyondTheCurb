@@ -35,6 +35,19 @@ export const DETAIL_KEYS = Object.freeze([
   [['opening_hours', 'openingHours', 'hours'], 'hours'],
   [['phone', 'telephone', 'contact:phone'], 'phone'],
   [['website', 'url', 'contact:website'], 'website'],
+  // What the place *offers* — free Wi-Fi, takeaway, step-free entry, a
+  // reception. Added for the parity benchmark, where `DT-T3`'s whole grading
+  // note is "facilities.internet_access = 'free Wi-Fi'. Must come from POI
+  // details, not a guess." — a question no other path in this system can answer,
+  // since the candidate block carries names and categories only. It generalises:
+  // MapIO POIs carry `facilities`/`catering`, Audiom features carry the same
+  // idea in their property bag.
+  //
+  // ⚠️ `firstOf` takes strings and numbers, so an adapter must FLATTEN its
+  // property bag into one string before putting it here. That is deliberate: the
+  // allowlist exists so a raw nested bag can never reach `data`, and accepting
+  // an object here would reopen exactly the hazard this module note is about.
+  [['facilities', 'amenities'], 'facilities'],
 ]);
 
 const firstOf = (props, keys) => {

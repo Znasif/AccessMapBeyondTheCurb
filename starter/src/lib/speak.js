@@ -27,6 +27,23 @@
  *   - it returns whether the utterance actually started; a caller that gets
  *     `false` never receives `onEnd` and must not wait for it.
  *
+ * MILESTONE S ADDED TWO THINGS AND CHANGED NOTHING ELSE:
+ *
+ *   - `speak(x, { onBoundary })` forwards `SpeechSynthesisUtterance.onboundary`'s
+ *     `charIndex`. That is where `AnnouncementQueue.setSpokenIndex()` goes, and
+ *     without it `togglePause()` can only resume from the start of a sentence —
+ *     the ported queue's whole pause/resume feature is dead without a progress
+ *     signal, and `boundary` is the only one a browser gives.
+ *   - `speak(x, { rate, pitch, volume, lang, voice })` are passed through, so
+ *     L0's "slower" / "louder" control words have something to act on.
+ *
+ * ⚠️ `onEnd` IS NOT A GUARANTEE. `speechSynthesis.speak()` is silently dropped
+ * by engines that require a user gesture, and Chrome's synthesiser is known to
+ * stall on long utterances; in both cases `onend` and `onerror` never fire. Any
+ * queue that advances on `onEnd` alone therefore deadlocks on the first dropped
+ * utterance. `speech/narrator.js` carries the watchdog that makes the contract
+ * safe — see the note there. Do not build a second queue on this without one.
+ *
  * PLATFORM-FREE AT MODULE SCOPE (§4 of the plan): `speechSynthesis` and
  * `SpeechSynthesisUtterance` are resolved off `globalThis` when a speaker is
  * *used*, never when this file is loaded, so it imports in Node and is covered
@@ -71,11 +88,19 @@ export function createSpeaker(options = {}) {
 
   /**
    * @param {string|{text?: string}} input
-   * @param {{interrupt?: boolean, onEnd?: () => void}} [opts]
+   * @param {object} [opts]
+   * @param {boolean} [opts.interrupt=true]
+   * @param {() => void} [opts.onEnd]
+   * @param {(charIndex: number, event: object) => void} [opts.onBoundary]
+   * @param {number} [opts.rate]
+   * @param {number} [opts.pitch]
+   * @param {number} [opts.volume]
+   * @param {string} [opts.lang]
+   * @param {object} [opts.voice]
    * @returns {boolean} Whether an utterance was started.
    */
   function speak(input, opts = {}) {
-    const { interrupt = true, onEnd } = opts;
+    const { interrupt = true, onEnd, onBoundary, rate, pitch, volume, lang, voice } = opts;
     const text = textOf(input);
     if (!text) return false;
     const s = getSynth();
@@ -84,11 +109,24 @@ export function createSpeaker(options = {}) {
     try {
       if (interrupt) s.cancel();
       const utterance = new U(text);
+      // Only assign what the caller asked for: writing `undefined` onto a real
+      // `SpeechSynthesisUtterance` sets rate to NaN rather than leaving the default.
+      if (typeof rate === 'number') utterance.rate = rate;
+      if (typeof pitch === 'number') utterance.pitch = pitch;
+      if (typeof volume === 'number') utterance.volume = volume;
+      if (typeof lang === 'string') utterance.lang = lang;
+      if (voice) utterance.voice = voice;
       if (onEnd) {
         // Both paths must settle, or a queue built on `onEnd` stalls on the
         // first utterance the browser drops.
         utterance.onend = () => onEnd();
         utterance.onerror = () => onEnd();
+      }
+      if (onBoundary) {
+        utterance.onboundary = (event) => {
+          const index = event?.charIndex;
+          onBoundary(Number.isFinite(index) ? index : 0, event);
+        };
       }
       s.speak(utterance);
       return true;

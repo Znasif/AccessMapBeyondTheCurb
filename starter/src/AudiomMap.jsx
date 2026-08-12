@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AUDIOM_ORIGIN, AUDIOM_KEY, buildEmbedSrc, bboxSpanMeters } from './audiom';
 import { createAudiomChannel, INBOUND, whatsHere as whatsHereAnswer } from './lib/audiomChannel';
 import { speak } from './lib/speak';
+import { AudiomMic } from './AudiomMic';
 
 /** Approx ground distance (m) between two { lng, lat } points. */
 function metersBetween(a, b) {
@@ -37,6 +38,12 @@ function metersBetween(a, b) {
  *                exists. The seam M7/M13 drive `moveAvatar`, `executeCommand`
  *                and `route_to` mode `fly_me_there` through. Pass a stable
  *                callback: it is re-invoked whenever its identity changes.
+ *  - onUtterance / speechPhrases / speechLang / allowCloudStt :
+ *                milestone S. `onUtterance` receives any transcript L0 does not
+ *                answer itself — the M7 dispatcher's entry point. `speechPhrases`
+ *                is the in-window place-name list used for contextual biasing.
+ *                See `AudiomMic.jsx`; everything with logic in it is in
+ *                `lib/speech/`.
  *
  * ⚠️ The raw postMessage protocol is NOT owned here any more — it lives in
  * `lib/audiomChannel.js` (milestone 5b), which is platform-free and covered by
@@ -47,6 +54,7 @@ export function AudiomMap({
   throttleMs = 500, stepMeters = 0, onEvent, onStart, onBounds,
   syncKey = 0, syncView = false, fill = false,
   featureRef, onChannel,
+  onUtterance, speechPhrases, speechLang = 'en-US', allowCloudStt = true,
 }) {
   const iframeRef = useRef(null);
   const readyRef = useRef(false);
@@ -300,6 +308,16 @@ export function AudiomMap({
         >
           What&rsquo;s here?
         </button>
+        {/* Milestone S. Same gesture rules as the button above: pressing it arms
+            the narration queue AND opens the microphone. Anything L0 cannot
+            answer goes out through `onUtterance`. */}
+        <AudiomMic
+          onWhatsHere={whatsHere}
+          onUtterance={onUtterance}
+          phrases={speechPhrases}
+          lang={speechLang}
+          allowCloud={allowCloudStt}
+        />
       </div>
       <iframe
         ref={iframeRef}

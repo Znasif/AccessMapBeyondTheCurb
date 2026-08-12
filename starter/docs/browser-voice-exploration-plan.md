@@ -339,33 +339,37 @@ finding. Gates are hard dependencies.
 |---|---|---|---|---|
 | 1 | `Surface` — (u,v), acuityCell, aspect negotiation | — | 3 d | **done 2026-08-10** — `src/lib/surface.js`, 126 checks |
 | 2 | `WorldAdapter` interface + capability negotiation | — | 3 d | **done 2026-08-10** — `worldAdapter.js` + `toolFilter.js`, 21 checks |
-| W | wllama qualification spike — tool calls on 2 of the 12 schemas, **thinking-disable**, ~7k-token cold prefill, `n_cache_reuse` prefix reuse, split-GGUF E2B load | — | 1–2 d | **functional PASS 2026-08-10** in Chrome/WebGPU on RTX 3080 (`explore/wllama-spike/`, v3.5.1, libllama b9640, E2B qat UD-Q4_K_XL split ×5): tool calls, thinking-off both ways, `role:tool` round trip, split-GGUF load. Open: prefill/reuse/decode numbers + M1 floor run |
+| W | wllama qualification spike — tool calls on 2 of the 12 schemas, **thinking-disable**, ~7k-token cold prefill, `n_cache_reuse` prefix reuse, split-GGUF E2B load | — | 1–2 d | **done 2026-08-12** — functional PASS 2026-08-10 (tool calls, thinking-off both ways, `role:tool` round trip, split-GGUF load); numbers closed 2026-08-12 on RTX 3080 + the 8 GB M1 floor, four runs in `explore/wllama-spike/results/`. See §5.2 |
 | 3 | `LocalLLMClient` **seam** — one interface; HTTP-router backend exists, streaming + tool loop to write | — | 4 d | **done 2026-08-10** — `chatCompletion` + `toolLoop.js`, 41 offline checks; request contract frozen for 3w; thinking-disable + 768 cap enforced client-side |
 | 8 | `PlaceIndex` — EmbeddingGemma + IndexedDB | 3 | — | **done** |
-| 3w | wllama in-tab backend (`l1` + `l3`) behind the seam; subsumes rev 1's 3b placeIndex swap | W, 3 | 1 w | off the critical path |
+| 3w | wllama in-tab backend (`l1` + `l3`) behind the seam; subsumes rev 1's 3b placeIndex swap | W, 3 | 1 w | **done 2026-08-11** — `src/lib/llm/{index,modelProfiles,wllamaTransport}.js`, 77 checks; `createLLMClient({backend})` defaults to `http` |
 | 5a | `AudiomWorldAdapter` **Tier A** via `/layers` + IndexedDB cache | 2 | 1 w | **done 2026-08-10** — `adapters/audiomWorldAdapter.js`; 60 offline checks + live pass on 885 (2,971 places, warm cache = 0 fetches); injectable store, IndexedDB wiring pending |
-| 5b | Audiom side-effect channel — `moveAvatar`, `executeCommand` wrappers | 5a | 2 d | |
-| 5c | L0 `whats_here` — promote `lastFeature` to a ref, speak it | ⚠️ 5b only | 0.5 d | subscription **done** (`AudiomMap.jsx:169`); needs only the 3-line `speak()` from `TactileExplorerGeneric.jsx:39`, not the M-S queue — first spoken output, week 1 |
+| 5b | Audiom side-effect channel — `moveAvatar`, `executeCommand` wrappers | 5a | 2 d | **done 2026-08-11** — `src/lib/audiomChannel.js`, 159 checks; `LIVE_FEATURE_MAX_AGE_MS` bounds the live stream |
+| 5c | L0 `whats_here` — promote `lastFeature` to a ref, speak it | ⚠️ 5b only | 0.5 d | **done 2026-08-11** — `src/lib/speak.js` + a "What's here?" button, which is also the user gesture browsers require before `speechSynthesis` will utter. First spoken output |
 | 6 | `CamioWorldAdapter` — template / colorMap / hotspots / region adjacency | 2 | 1 w | **done 2026-08-10** — `adapters/camioWorldAdapter.js`, 79 checks; nearest-boundary `material_mm` distances |
-| 7 | `ToolRegistry` + dispatcher, tools 1–6, capability filtering | 3, 5a | 1 w | |
+| 7 | `ToolRegistry` + dispatcher, tools 1–6, capability filtering | 3, 5a | 1 w | **done 2026-08-11** — `{direction,turnContext,untrusted,toolResult,toolRegistry,l0,dispatcher}.js` + `tools/`, 212 checks. See §5.2 |
 | P | **Logic port** from `simple_camio_llm` (§4), validated in Node | — | 2 w | **done 2026-08-10** — `src/lib/logic/` (12 modules, 287 checks); route prose **byte-identical** to the Python on `new_york` and `detroit_conant`; 7 reference-implementation bugs documented in-file |
-| 12b | Tier-A routing — Floyd–Warshall from the ported graph | P, 5a | 4 d | |
-| 13 | Nav tools 10–12 against the Audiom avatar | 12b, 5b | 4 d | |
-| S | Speech — Web Speech in, `speechSynthesis` queue out | 7 | 4 d | |
+| 12b | Tier-A routing — Floyd–Warshall from the ported graph | P, 5a | 4 d | **done 2026-08-11** — `src/lib/geojsonGraph.js` + `route()`. ⚠️ NO real-data validation: map 885 correctly refuses to build a graph (geological map — its lines are contacts, not a walkable network). Needs a walkable Tier-A map id |
+| 13 | Nav tools 10–12 against the Audiom avatar | 12b, 5b | 4 d | ready — both gates met. `fly_me_there` needs no new transport; `channel.moveAvatar` is the whole mechanism |
+| S | Speech — Web Speech in, `speechSynthesis` queue out | 7 | 4 d | in progress 2026-08-12 |
+| **P-eval** | **28-turn MapIO parity against the JS stack in Node** — replayed Apple-STT transcripts → l1 → l3 (E4B on the router). Discharges §6's acceptance test for **P**, which has never run | P, 7, 12b | 2 d | in progress 2026-08-12 |
+| **3w-eval** | Same runner, wllama transport, E2B in-tab. Isolates the model swap | 3w, P-eval | 1 d | in progress 2026-08-12 |
+| **S-bench** | Live-mic Web Speech WER, graded against `arm1_curated_stt_nohints` — see §6 for why the no-hints arm is the fair comparison | S, P-eval | 1 d | |
 | 4 | `OsmWorldAdapter` (places only, polygons file) | 2 | 4 d | |
 | 9 | `SemanticPlanCache` | 1, 8 | 3 d | |
 | 10 | OpenSidewalks tiling pipeline — the 209 MB problem | — | own project | deferred |
 | 11 | Accessibility tools 7–9 | 10 | — | blocked on 10 |
 | 14 | FunctionGemma L2 fast path | 7, 8 | — | deferred |
-| 15 | KV slot save/restore | 7 | — | deferred — ⚠️ HTTP-router backend only; wllama v3 has no imperative KV API |
+| 15 | KV slot save/restore | 7 | — | deferred — ⚠️ HTTP-router backend only, **permanently**: wllama v3 has no imperative KV API, so this is not "not yet" in a tab, it is "never". Revisit only if v4 restores `kvClear`/`kvRemove` |
 
 **Critical path to a working voice session on Audiom + `.camio`:**
-1 → 2 → 3 → 5a → 5b → 7 → S, with **P**, **W** and **3w** in parallel and 12b/13 folding
-in when they land. Roughly **6–8 weeks** to the session — but the first spoken output (5c
-on the minimal speak path) lands in week 1, and ⚠️ the session demo no longer waits on the
-wllama migration: it runs against the HTTP-router backend on any desktop OS from day one,
-and **3w converts a working server-backed session into the zero-install configuration**
-rather than gating whether a session exists at all.
+1 → 2 → 3 → 5a → 5b → 7 → S. ⚠️ **As of 2026-08-12 only S remains**; everything before it
+is done and committed. The 6–8 week estimate was wrong in the useful direction — six
+milestones landed on 2026-08-10 and the rest of the path on 2026-08-11.
+
+What that leaves is not "the session works" but "the session has never been graded". The
+plan's three §6 harnesses have produced **no JS baseline number, any of them**, which is
+why P-eval is now a milestone row rather than a line of prose.
 
 M10 stays deferred. Nothing sidewalk-related works in-browser until it exists, and it is
 its own project; the Audiom Tier A path now delivers real geometry without it, which is
@@ -420,29 +424,113 @@ Deltas the docs didn't predict:
   `AudiomTactileApp`'s inline `aspectMismatch` should call `surface.js`; the IndexedDB
   layer-cache store is interface-ready but unwired.
 
+### 5.2 Implementation log — the rest of the critical path (2026-08-11/12)
+
+5b, 5c, 12b, 3w and 7 landed on 2026-08-11 and W's numbers closed on 2026-08-12. Ten Node
+suites, ~1,150 checks. `test_logic_port`'s 287 never moved, which is the port's acceptance
+bar working as intended.
+
+**Two conventions the reference implementation settled, against a design agent's advice:**
+
+- **A finger on a tactile map HAS a heading.** `position_handler.py:162` derives it from
+  finger movement — thresholded, dotted against the edge versor, `MovementDirection.NONE`
+  past 60°. It is *intermittent*, not absent. So `direction.js` imports the rosette from
+  the ported `logic/graph.js` rather than reimplementing it: absolute direction is always
+  available and needs no heading; the turn-relative phrase is additive and gated on a
+  fresh one, reproducing `__process_instructions`' own `i === 0` branch.
+- **The vocabulary is 8 cardinals relative to north plus turn-relative continuation —
+  never a clock face**, despite §5.4 of the design doc. `graph.py:738` and
+  `fly_over_navigator.py:51` agree. A test asserts no tool result ever says "o'clock".
+- **Coordinates at the tool boundary are world-native** — lng/lat for Audiom and OSM,
+  material mm for camio — not `(u,v)`. MapIO keeps one `ReferenceSystem` (`graph.py:22`)
+  and every node, edge, POI and position lives in it. `(u,v)` is a perception-layer
+  artifact, converted once at the perception→adapter boundary.
+
+**⚠️ But heading cannot be sampled in `(u,v)`.** A 45° finger sweep across a 297×210 mm
+sheet is 35° in `(u,v)`, and geographic frames add Mercator on top. Hence a new adapter
+primitive, `metricPoint(u,v)` → an isotropic y-down plane, which is now the one place per
+world where the projection lives.
+
+**Two live bugs the harness caught that reading would not have:**
+
+- **§6.3's memo key is under-specified, and it is an accessibility bug.** It keys on
+  position and args, but `whats_here` reads `ctx.liveFeature` and `get_direction_to` reads
+  `ctx.heading`. A finger resting inside one acuity cell while the avatar crosses three
+  features would be told the first name forever — the cache silently reintroducing the
+  staleness `LIVE_FEATURE_MAX_AGE_MS` exists to prevent. Fixed with a handler-declared
+  `memoTag(ctx)`.
+- **`Edge.getCompleteDescription()` opens with `features[SURFACE]`**, and `geojsonGraph.js`
+  supplies no `edges_features`, so every edge would have announced itself as "concrete"
+  from a placeholder — a §8 stale-attribute violation. `at()` uses pure topology instead.
+
+**Runtime numbers (§7.2 Q1, and they close W).** Four runs in
+`explore/wllama-spike/results/`, E2B QAT UD-Q4_K_XL, libllama b9640:
+
+| | RTX 3080 / 32 GB | 8 GB M1 |
+|---|---|---|
+| load (cold OPFS / warm) | 14.9 s / — | 103.1 s / 6.5 s |
+| peak memory | 6006 MB | 4976 MB |
+| decode | 32.1 tok/s | 19.8 tok/s |
+| prefill, divergent head, default | 38.52 s | **119.52 s** |
+| prefill, divergent head, `swa_full` | **0.91 s** | **2.37 s** |
+
+⚠️ **`swa_full: true` is now the default** (`modelProfiles.js`), pinned by a test. Gemma
+4's interleaved SWA (`n_swa = 512`) does not defeat prefix reuse in general — append-only
+continuation reuses 0.997 either way. What it defeats is reuse across a prompt that
+diverges in a *stable head*, which is what every new user turn is: same system prompt,
+freshly retrieved candidates. There the default reuses **zero** of 6363 tokens. `swa_full`
+costs ~27% on genuinely-new tokens and, contrary to the predicted +84 MiB, nothing
+measurable in peak memory.
+
+Also measured: `navigator.deviceMemory` is **clamped at 8**, so §7.2's "E4B in-tab is a
+16 GB configuration" is not observable from a tab — E4B must be opt-in via
+`VITE_LLM_PROFILE`, never memory-detected. And 80 candidates → 1702 prompt tokens
+(~21/candidate), putting the 6.2–6.8k curated band at ~300 candidates.
+
 ---
 
 ## 6. Verification
 
-Three harnesses already exist. Use them; do not invent a fourth.
+Three harnesses already exist. Use them; do not invent a fourth. ⚠️ **None of the three
+has yet produced a number from the JavaScript stack** — that is the single largest gap in
+this plan, and P-eval/3w-eval/S-bench in §5 exist to close it.
 
 **Tool-selection correctness.** `docs/eval_dataset.json` (21 cases, tagged by
-`capability_profile`) via `scripts/eval_tools.py`. ⚠️ Per §10, `eval_tools.py` uses its own
-flat system prompt and therefore **measures something different** from the §4.3 candidate
-path. Reconcile the two before trusting any number as a baseline — this is a prerequisite,
-not a nice-to-have.
+`capability_profile`) via `scripts/eval_tools.py`. ✅ **Reconciled 2026-08-11**: the script
+now shells to Node and imports the real `candidateContext`/`toolFilter`, so the JS stays
+single source of truth. ⚠️ Two consequences. The old harness ignored `frames` **entirely**
+and left camio's `route_to.mode` un-narrowed, so **every eval number from before
+2026-08-11 measured a different filter** and none is a baseline. And no replacement number
+exists yet — the router was unreachable when it ran.
 
-**End-to-end behaviour.** `explore/simple_camio_llm/run_parity_benchmark.py` — 28 turns,
-`--routing local`, graded against a GPT-4o bar. If the ported logic keeps the tool contract,
-this runs against the JS in Node. It is the acceptance test for **P**, and the reason the
-port should be platform-free.
+**End-to-end behaviour.** `explore/simple_camio_llm/run_parity_benchmark.py` — 26 recorded
+turns over 18 cases, `--routing local`, graded post-hoc against a GPT-4o bar (94.74%
+correct + 5.26% correct_not_optimal on `new_york`). It is the acceptance test for **P**,
+and the reason the port is platform-free. ⚠️ It has never run against the JS, because
+until M7 there was no dispatcher to run it against; **P-eval** in §5 is that run.
+
+Note on inputs: `SpeechRecognition` cannot be fed a file — it captures the default input
+device and accepts no `MediaStream` or `AudioBuffer` — so WAVs cannot be pushed through
+browser STT without OS-level audio loopback. P-eval therefore **replays** the transcripts
+Apple's on-device recognizer produced (`benchmark/results/arm1_curated_stt/*.json` stores
+both the heard text and the reference per turn), and **S-bench** measures browser STT
+live on a mic instead. ⚠️ An earlier draft of this paragraph said browser STT has no
+equivalent of the Python arm's 50 POI `contextualStrings`, and therefore that
+`arm1_curated_stt_nohints` was the only fair comparison. **That is wrong.** Web Speech
+ships `SpeechRecognitionPhrase` / `recognition.phrases` — the same in-window biasing list,
+at no memory cost — and M-S wires it from the place names we already hold, feature-detected.
+So S-bench should grade against `arm1_curated_stt` (hints on), with the no-hints arm as the
+control. This also retires §8.1 of the design doc's `Qwen3-ASR-0.6B` fallback, which was
+proposed for exactly this job and rejected on memory grounds.
 
 **Retrieval.** recall@**5**, not top-1, on ~200 hand-labelled utterances. Rev-3 measured
 recall@1 at 1/5 and recall@5 at 5/5 on the same queries — several candidates are routinely
 equally valid (five banks for "I need an ATM"). Instrument this per world; the Audiom
 document shape is new and its base-rate cutoff is unfitted.
 
-**Runtime.** The **W** spike: load E2B and E4B in a tab on the 8 GB M1 and record peak
+**Runtime.** ✅ **Closed 2026-08-12 — see §5.2 for the numbers.** E4B in a tab remains
+unmeasured (`measured: false` in `modelProfiles.js`); everything else below is answered.
+The **W** spike: load E2B and E4B in a tab on the 8 GB M1 and record peak
 memory, ⚠️ **cold prefill time at ~7k prompt tokens**, and decode tok/s; confirm tool-call
 emission on two of the 12 schemas **with thinking disabled** — §8.0 of the design doc
 measured that with tools present, thinking-on is fatal, not slow, so the spike must find
@@ -519,8 +607,13 @@ up front; it cannot discover them by listing.**
    of pinned WebGPU allocation, which on an 8 GB M1 alongside Chrome is not tight but
    over budget — llama.cpp's 29–33% saving does not close a 5 GB hole. **E2B is the
    in-tab configuration on 8 GB machines; E4B in-tab is a 16 GB configuration; E4B stays
-   available on the HTTP-router backend either way (§1.1).** Measure before choosing; it
-   is now a day's work rather than a port.
+   available on the HTTP-router backend either way (§1.1).** ✅ **Measured 2026-08-12
+   (§5.2): E2B is viable in a tab on both machines** — 4976 MB peak and 19.8 tok/s decode
+   on the 8 GB M1, with `swa_full` bringing per-turn prefill to 2.37 s. E4B in a tab is
+   still unmeasured and stays opt-in, because `navigator.deviceMemory` is clamped at 8 and
+   cannot detect the 16 GB machine it would need. The remaining open half is not memory
+   but **accuracy**: E4B is what the parity benchmark graded, and whether E2B holds that
+   bar is what 3w-eval answers.
 2. **Speech in.** ⚠️ Rev 1 had this backwards on both browsers. Chrome 139 (Aug 2025)
    shipped **on-device** recognition — `SpeechRecognition` with `processLocally: true`
    and installable language packs — while Safari's Web Speech implementation sends audio
@@ -584,9 +677,12 @@ New with this plan:
   (`n_parallel: 1`), so EmbeddingGemma rides in its own worker + WASM heap alongside the
   chat model — additive memory the §7.2 budget must count.
 - **Multithread WASM needs COOP/COEP headers, and GitHub Pages cannot set them.** The
-  repo's Pages deploy (`.github/workflows/deploy-pages.yml`) collides with this: ship the
-  `coi-serviceworker` shim or accept single-threaded WASM there; any self-hosted deploy
-  just sets the two headers.
+  repo's Pages deploy (`.github/workflows/deploy-pages.yml`) collides with this. ⚠️
+  **Corrected 2026-08-11: do NOT ship the `coi-serviceworker` shim.** COEP `require-corp`
+  blocks cross-origin iframes that lack their own CORP/COEP, and the Audiom iframe is the
+  entire side-effect channel (§2.2) — the shim would trade every write capability for a
+  WASM thread pool. Accept single-threaded WASM on Pages, or self-host, where the two
+  headers are one line of config.
 - **iOS browsers are out.** ⚠️ Not because of a flat 500 MB cap — jetsam kills land
   anywhere from ~0.3 to ~2 GB depending on device generation, and Safari's default WebGPU
   `maxBufferSize` is 256 MB — but the conclusion stands: multi-GB in-tab inference is not

@@ -77,11 +77,20 @@ const GB = 1024 ** 3;
  * llama.cpp erases the checkpoint, and `pos_next = 0` — it restarts from token
  * ZERO. Not "reuses less than hoped": reuses nothing.
  *
- * So on the DEFAULT configuration **every round of the tool loop re-prefills
- * the whole 6.2–6.8k prompt**. With a 4-round budget that is up to 4× full
- * prefill per user turn, against a runtime whose prefill already lags (§0.1).
- * This is the single largest open risk in 3w and `SWA_FULL_NOTE` is the
- * candidate fix.
+ * ⚠️ CORRECTED 2026-08-12 by the harness, which measures reuse instead of
+ * reading the log. The log lines above are real; the conclusion drawn from them
+ * was too broad. **Append-only reuse was never broken.** bench item 6 — turn 2
+ * appended to a byte-identical prefix, exactly §6.1's rule — reuses 0.997 of
+ * 6397 tokens with `swa_full` OFF, on both machines. Continuing a prefix needs
+ * no reconstruction, so the sliding window never has to reach back.
+ *
+ * What SWA actually defeats is reuse across a prompt that diverges in a stable
+ * HEAD — the case `n_cache_reuse` exists for, and the case a new user turn
+ * always is: same system prompt, freshly retrieved candidate block. There the
+ * default reuses ZERO of 6363 tokens. That is still the cost that matters, so
+ * the practical conclusion stands; only the mechanism was mis-stated.
+ *
+ * `SWA_FULL_NOTE` fixes it, and is now on by default.
  */
 export const N_CACHE_REUSE = 256;
 
@@ -96,18 +105,29 @@ export const N_CACHE_REUSE = 256;
  * +84 MiB total. That is nothing next to 2.6 GB of weights, and if it buys
  * full-prefix reuse on a 6.5k prompt it is the best trade in the file.
  *
- * DEFAULT OFF, deliberately, and this is a close call. The evidence that reuse
- * is broken WITHOUT it is direct (llama.cpp said so, twice); the evidence that
- * it is fixed WITH it is not — nobody has run that configuration here. Shipping
- * an unverified default is the §8.0 class of mistake, so it stays off and the
- * measurement is one command:
+ * ✅ MEASURED 2026-08-12 on both machines, and it is DEFAULT ON as a result.
+ * Paired runs in `explore/wllama-spike/results/`, same build, same prompt, the
+ * flag as the only difference — on the divergent-head call:
  *
- *     cd explore/wllama-spike && npm run measure -- --swa-full
+ *                        cached / 6363     wall      new-token prefill    peak
+ *     linux-x64  off          0          38.52 s        173.5 tok/s     6006.3 MB
+ *     linux-x64  ON        6345           0.91 s        124.9 tok/s     6006.5 MB
+ *     m1-8gb     off          0         119.52 s         53.8 tok/s     4975.6 MB
+ *     m1-8gb     ON        6345           2.37 s         39.3 tok/s     4975.4 MB
  *
- * If `cached_tokens` comes back near the full prompt, turn this on and delete
- * this paragraph. It is the highest-value open item in 3w.
+ * 42× on the desktop, 50× on the M1 — which is the difference between a
+ * two-minute turn and a usable one. The predicted ~+84 MiB does not show up in
+ * peak memory at all (−0.2 MB and +0.2 MB; both are noise). The cost is real
+ * but small and consistent: ~27–28% slower prefill on tokens that genuinely
+ * are new, since SWA layers now attend over the full context. Paying 28% more
+ * per new token to prefill 50× fewer of them is not a close call.
+ *
+ * Re-measure with `npm run measure -- --swa-full` after any libllama bump, and
+ * check the reuse row prints `swa_full=true` — a run whose label says swafull
+ * but whose `loadParams.swa_full` is unset measures the default twice, which
+ * happened once already.
  */
-export const SWA_FULL_NOTE = 'measure with --swa-full before enabling; see N_CACHE_REUSE';
+export const SWA_FULL_NOTE = 'default ON — measured 2026-08-12, 42–50× on divergent-head reuse, free on memory';
 
 /**
  * 8192 matches the HTTP router's context. Plan-adjacent measurement recorded on
@@ -135,7 +155,10 @@ const CHAT_LOAD = {
   // Keeps a warm slot rather than tearing the context down between turns. THIS
   // is what carries prefix reuse for append-only history — see N_CACHE_REUSE.
   cache_idle_slots: true,
-  // swa_full: true — see SWA_FULL_NOTE. Off until measured.
+  // Allocates the sliding-window layers at full n_ctx so a prompt that diverges
+  // in a stable head can still be reused. Measured, not assumed — SWA_FULL_NOTE
+  // carries the paired numbers.
+  swa_full: true,
 };
 
 const EMBED_LOAD = {

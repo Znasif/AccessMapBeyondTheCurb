@@ -18,18 +18,32 @@ import { MAX_ADJACENT } from '../toolResult.js';
 /**
  * A Place, reduced to what can be spoken.
  *
+ * ⚠️ `description` is opt-**out** for a reason found by the parity benchmark. This
+ * projector is used in two very different positions: once for the single place a
+ * question is about, and once **per entry of a list** —
+ * `describe_surroundings` returns five, `whats_here` three. `MAX_RESULT_CHARS`
+ * is 1200 and `capSize` answers an over-large `data` by trimming arrays *to
+ * their first element*, so a world whose places carry descriptive prose silently
+ * answers "what is around me" with one place out of five, marked only by a
+ * `limits` entry. Measured on `explore/simple_camio_llm/models/detroit_conant`:
+ * 88 of 1,764 sampled positions truncated that way.
+ *
+ * Neither shipped adapter sets a top-level `description` today (camio keeps
+ * its POI prose in `props`), so this is defensive rather than a behaviour
+ * change — but the next adapter that does would not have found out.
+ *
  * @param {object} place
- * @param {{categories?: number}} [options]
+ * @param {{categories?: number, description?: boolean}} [options]
  * @returns {object}
  */
-export function projectPlace(place, { categories = 2 } = {}) {
+export function projectPlace(place, { categories = 2, description = true } = {}) {
   if (!place) return null;
   const out = { name: place.name };
   if (place.category) {
     out.category = String(place.category).split(',').map((c) => c.trim()).filter(Boolean)
       .slice(0, categories).join(', ');
   }
-  if (place.description) out.description = place.description;
+  if (description && place.description) out.description = place.description;
   return out;
 }
 
@@ -93,7 +107,10 @@ export function adjacentTo(adapter, ctx, {
  * @param {object} place
  */
 export function describeNeighbour(adapter, uv, place) {
-  const entry = projectPlace(place);
+  // A list entry is a name, a distance and a direction. The prose belongs to
+  // `get_place_details`, which asks about one place at a time — see the
+  // truncation note on `projectPlace`.
+  const entry = projectPlace(place, { description: false });
   // `nearby()` returns `{value, units}` in both adapters as of M7; the unit is
   // reported once on the envelope, so only the number travels here.
   if (place.distance && Number.isFinite(place.distance.value)) {

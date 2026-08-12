@@ -4,10 +4,10 @@
 Gemma stack (llama.cpp on an 8 GB M1), with prompt and tool-call caching handled by
 EmbeddingGemma and FunctionGemma.
 
-**Status:** revision 4. Milestones 1, 2, 3, 6, 8 implemented and tested; 5 partial (Tier A
-reads done and live-verified, side-effect channel pending); the `simple_camio_llm` logic
-port (plan milestone P) done. Live milestone table:
-[`browser-voice-exploration-plan.md`](./browser-voice-exploration-plan.md) §5.
+**Status:** revision 4. ⚠️ Do not read a milestone status from this document — it goes
+stale. As of 2026-08-12 the critical path is complete except for speech; the live
+milestone table is [`browser-voice-exploration-plan.md`](./browser-voice-exploration-plan.md)
+§5 and §9 below now points at it rather than duplicating it.
 
 > **Revision 4 (2026-08-10) is an implementation update, not a redesign.** Six milestones
 > landed as platform-free modules under `starter/src/lib/` with Node test suites
@@ -814,30 +814,26 @@ but it costs memory this machine does not have spare.
 
 ## 9. Build order
 
-| # | Milestone | Gates | Status |
-|---|---|---|---|
-| 1 | `Surface` abstraction — (u,v), acuityCell, aspect negotiation (§2) | — | **done** rev 4 — `src/lib/surface.js` (126 checks) |
-| 2 | `WorldAdapter` interface + capability negotiation (§3.4–3.5) | — | **done** rev 4 — `src/lib/worldAdapter.js` + `src/lib/toolFilter.js` |
-| 3 | `LocalLLMClient` — streaming, GBNF, no tools | — | **done** rev 4 — `chatCompletion` + `src/lib/toolLoop.js`; GBNF rides llama.cpp's own tools path; transport injectable for the wllama backend |
-| 4 | `OsmWorldAdapter` (places only, from the polygons file) | 2 | |
-| 5 | `AudiomWorldAdapter` tier A/C + persistent bounds cache | 2 | **partial** rev 4 — Tier A done (`src/lib/adapters/audiomWorldAdapter.js`, live-verified on map 885); side-effect channel + tier-C probe migration pending |
-| 6 | `CamioWorldAdapter` — template/colorMap/hotspots | 2 | **done** rev 4 — `src/lib/adapters/camioWorldAdapter.js` (79 checks) |
-| 7 | `ToolRegistry` + dispatcher, tools 1–6 | 3, 4 | |
-| 8 | `PlaceIndex` — EmbeddingGemma + IndexedDB | 3 | **done** — `src/lib/placeIndex.js`, `src/lib/candidateContext.js` |
-| 9 | `SemanticPlanCache` (§6.2) | 1, 8 | |
-| 10 | OpenSidewalks tiling pipeline | — |
-| 11 | Accessibility tools 7–9 | 10 |
-| 12 | `RouteProvider` — AccessMap impl (exists), then local A* | 10 |
-| 13 | Nav tools 10–12 | 12 |
-| 14 | FunctionGemma dataset + LoRA + L2 fast path | 7, 8 |
-| 15 | KV slot save/restore | 7 |
+⚠️ **This section is no longer a table.** It held a third copy of the milestone status, and
+by 2026-08-12 all three copies disagreed with the tree — which is the failure mode a
+duplicated status list always has. **The live milestone table is
+[`browser-voice-exploration-plan.md`](./browser-voice-exploration-plan.md) §5**, and it is
+authoritative for status, sequencing and gates. This document stays authoritative for what
+the system *is* and why.
 
-Milestones 1–9 give a working conversational explorer across **all three worlds** on data you
-already have. Everything after that is the sidewalk graph.
+Two structural points from rev 1 belong here rather than in a status table:
 
-Note the reordering from rev 1: the surface and world abstractions now come first. Building tools
-against Mapbox and retrofitting Audiom and `.camio` later would bake WGS84 and pin grids into
-signatures that then have to be unpicked.
+- **Milestones 1–9 give a working conversational explorer across all three worlds** on data
+  you already have. Everything after that is the sidewalk graph.
+- **The surface and world abstractions come first, deliberately.** Building tools against
+  Mapbox and retrofitting Audiom and `.camio` later would bake WGS84 and pin grids into
+  signatures that then have to be unpicked.
+
+And one item that both documents lose track of precisely because it is nobody's milestone:
+§2.3's `subWindow(targetAspect)` variant, the fix for aspect inversion on refreshable
+surfaces, appears in no milestone row in either document. It is a silent geometric error
+rather than a missing feature — until it exists, every `get_direction_to` on a Monarch is
+skewed.
 
 ---
 
