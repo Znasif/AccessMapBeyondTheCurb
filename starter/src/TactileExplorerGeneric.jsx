@@ -3,6 +3,7 @@ import cv from '@techstark/opencv-js';
 import { uvToLngLat } from './audiom';
 import { openCameraStream } from './cameraDevices';
 import { createPointingTracker, pointingHint } from './gestureRecognizer';
+import { speak } from './lib/speak';
 
 const MEDIAPIPE_WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm';
 const HAND_MODEL_URL =
@@ -36,10 +37,8 @@ function makeOneEuroFilter(minCutoff = 1.0, beta = 0.007, dCutoff = 1.0) {
 }
 
 // ---- accessibility cues ----
-const speak = (t) => {
-  try { window.speechSynthesis.cancel(); window.speechSynthesis.speak(new SpeechSynthesisUtterance(t)); }
-  catch { /* noop */ }
-};
+// `speak` moved to lib/speak.js in milestone 5c — same cancel-then-speak
+// behaviour, now shared with AudiomMap's whats_here. The M-S queue replaces it.
 let _ac;
 const beep = () => {
   try {

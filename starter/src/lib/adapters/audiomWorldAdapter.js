@@ -28,17 +28,34 @@
  * as `store`. Nothing here reads `import.meta.env`, `window`, `indexedDB` or
  * `fetch` off the global scope except as a *default* that Node also provides.
  *
- * ⚠️ Deliberately NOT imported: `../../audiom.js`. It evaluates
- * `import.meta.env` at module scope, which makes it un-importable outside Vite.
- * The two coordinate helpers it owns (`uvToLngLat`, `uvToEastNorth`) are
- * re-derived below and must stay numerically identical to it — see `#uvToXY`.
+ * M12b adds the second half: `buildLogicGraph()` turns the loaded geometry into
+ * the node/edge network `lib/logic/graph.js` was ported to route over, and
+ * `route()` answers through the `WorldAdapter` interface so tools are written
+ * once. See `buildLogicGraph` for what the projection is and what it costs.
+ *
+ * ✅ `../../audiom.js` IS imported now — the §5.1 debt is discharged. It used to
+ * dereference `import.meta.env` at module scope, so nothing outside Vite could
+ * load it and the two coordinate helpers it owns (`uvToLngLat`,
+ * `uvToEastNorth`) had to be re-derived here. The env read moved inside a
+ * function; the copies are gone; `scripts/test_audiom_adapter.mjs` pins the
+ * numbers. Only the pure Mercator half is used — nothing here calls
+ * `buildEmbedSrc` or `parseAudiomView`, which still touch `window` when invoked.
  */
 
+import { uvToLngLat, uvToEastNorth, mercY } from '../../audiom.js';
+import { A4_LANDSCAPE_ARTWORK } from '../surface.js';
+import { Coords } from '../logic/coords.js';
+import { Edge as LogicEdge } from '../logic/edge.js';
+import { Node as LogicNode } from '../logic/node.js';
+import { Graph, RouteAction } from '../logic/graph.js';
+import { buildGraphDict, DEFAULT_MAX_NODES } from '../geojsonGraph.js';
+import { bearingBetweenPoints, bearingFromDelta } from '../direction.js';
 import {
   WorldAdapter,
   CAPABILITIES,
   FRAMES,
   ambiguous,
+  isAmbiguous,
   unsupported,
 } from '../worldAdapter.js';
 
@@ -55,19 +72,27 @@ export const RECORD_VERSION = 1;
 /** Ceiling on `Ambiguous.candidates`, so a 373-way tie does not become a prompt. */
 export const MAX_AMBIGUOUS = 8;
 
+/**
+ * Comfortable walking pace, m/s, for the `duration` of a geographic route.
+ * 1.2 m/s is the low end of the usual 1.2–1.4 range and is the honest one to
+ * quote to someone reading a route by finger.
+ */
+export const WALK_SPEED_MPS = 1.2;
+
 /* --------------------------------------------------------------- coordinates -- */
 
-const MAX_MERC_LAT = 85.05112878;
 const DEG = Math.PI / 180;
 /** Metres per degree, the flat approximation `audiom.js:bboxSpanMeters` uses. */
 const M_PER_DEG = 111320;
+const MM_PER_INCH = 25.4;
 
-const clampLat = (lat) => Math.min(MAX_MERC_LAT, Math.max(-MAX_MERC_LAT, lat));
-const mercY = (lat) => {
-  const s = Math.sin(clampLat(lat) * DEG);
-  return 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI);
-};
-const invMercY = (y) => Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) / DEG;
+/**
+ * Width in inches of the material the ported graph's thresholds are expressed
+ * in — `Graph.SNAP_MIN_DISTANCE` is 0.25 *inches of print*, not 0.25 of
+ * anything on the ground. §2.2's printable A4 artwork area is the honest
+ * default for a real print (`surface.js`, 270 × 190 mm).
+ */
+export const DEFAULT_MATERIAL_WIDTH_INCHES = A4_LANDSCAPE_ARTWORK.widthMm / MM_PER_INCH;
 
 /* -------------------------------------------------------------------- storage -- */
 
@@ -79,8 +104,8 @@ const invMercY = (y) => Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) / DEG;
  * Redefined here rather than imported because `placeIndex.js` pulls in
  * `LocalLLMClient`, and this adapter must stay free of the LLM runtime. Its
  * `IndexedDBStore` is also pinned to the `abtc-place-index` database, which holds
- * embeddings — layer payloads want their own database, so the browser store lands
- * with the M5b wiring rather than being retrofitted onto that one.
+ * embeddings — layer payloads want their own database (§5.1: 885's `/layers` is
+ * 27 MB), which is what `IndexedDBLayerStore` below is.
  */
 export class MemoryStore {
   constructor() { this.map = new Map(); }
@@ -88,6 +113,69 @@ export class MemoryStore {
   async put(key, value) { this.map.set(key, { ...value, key }); }
   async delete(key) { this.map.delete(key); }
   async entries() { return [...this.map.entries()].map(([key, value]) => ({ key, value })); }
+}
+
+/** Its own database, per §5.1 — not a corner of `abtc-place-index`. */
+export const LAYER_DB_NAME = 'abtc-audiom-layers';
+export const LAYER_DB_VERSION = 1;
+export const LAYER_STORE = 'layers';
+
+/**
+ * The browser half of the same interface.
+ *
+ * §8 is explicit that this is **required, not an optimisation**: `/layers` for
+ * 885 measured 6.4 s cold and 11.0 s warm, and server-side caching does not
+ * rescue it because the cost is shipping 27 MB off a dyno. Records are stored
+ * as the parsed payload and go through structured clone, which handles a nested
+ * FeatureCollection natively — `JSON.stringify` on 27 MB would be the slow path,
+ * not the safe one.
+ *
+ * Never constructed outside a browser: `defaultLayerStore()` is the only caller
+ * and it checks for `indexedDB` first, exactly as `placeIndex.js` does. That is
+ * what keeps this module importable from Node.
+ */
+export class IndexedDBLayerStore {
+  #dbPromise = null;
+
+  #db() {
+    if (!this.#dbPromise) {
+      this.#dbPromise = new Promise((resolve, reject) => {
+        const req = indexedDB.open(LAYER_DB_NAME, LAYER_DB_VERSION);
+        req.onupgradeneeded = () => {
+          if (!req.result.objectStoreNames.contains(LAYER_STORE)) {
+            req.result.createObjectStore(LAYER_STORE, { keyPath: 'key' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+    return this.#dbPromise;
+  }
+
+  async #tx(mode, fn) {
+    const db = await this.#db();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(LAYER_STORE, mode);
+      const req = fn(tx.objectStore(LAYER_STORE));
+      tx.onerror = () => reject(tx.error);
+      if (req) req.onsuccess = () => resolve(req.result);
+      else tx.oncomplete = () => resolve();
+    });
+  }
+
+  async get(key) { return (await this.#tx('readonly', (s) => s.get(key))) || null; }
+  async put(key, value) { return this.#tx('readwrite', (s) => s.put({ ...value, key })); }
+  async delete(key) { return this.#tx('readwrite', (s) => s.delete(key)); }
+  async entries() {
+    const all = (await this.#tx('readonly', (s) => s.getAll())) || [];
+    return all.map((value) => ({ key: value.key, value }));
+  }
+}
+
+/** IndexedDB where there is one, memory where there is not (Node, tests). */
+export function defaultLayerStore() {
+  return typeof indexedDB !== 'undefined' ? new IndexedDBLayerStore() : new MemoryStore();
 }
 
 /** Store key. One record per map definition — see `cacheIdentity` for freshness. */
@@ -242,7 +330,8 @@ export class AudiomWorldAdapter extends WorldAdapter {
    *   key pinned to another org loses org-1 rows to `restrictAccessToOrganization`.
    * @param {Function} [opts.fetchImpl]    Defaults to `globalThis.fetch`.
    * @param {'header'|'query'|'both'} [opts.authMode]
-   * @param {object} [opts.store]          get/put/delete/entries; defaults to memory.
+   * @param {object} [opts.store]          get/put/delete/entries; defaults to
+   *   IndexedDB in a browser and memory everywhere else.
    * @param {number[]} [opts.bbox]         Window `[minX, minY, maxX, maxY]` in frame
    *   units. Omit to derive the full extent from the loaded geometry.
    * @param {boolean} [opts.includeHidden] Keep `visible: false` layers (see `#flatten`).
@@ -257,7 +346,7 @@ export class AudiomWorldAdapter extends WorldAdapter {
     apiKey = '',
     fetchImpl,
     authMode = 'header',
-    store = new MemoryStore(),
+    store = defaultLayerStore(),
     bbox,
     includeHidden = false,
     timeoutMs = 15000,
@@ -265,6 +354,7 @@ export class AudiomWorldAdapter extends WorldAdapter {
     radiusFraction = 0.1,
     now = () => Date.now(),
     worldId,
+    graphOptions = {},
   } = {}) {
     // The frame is a property of the payload, not of the constructor call, and
     // the payload has not arrived yet. `geographic` is the honest default —
@@ -307,25 +397,202 @@ export class AudiomWorldAdapter extends WorldAdapter {
     this.cacheIdentity = null;
     /** In-flight loads, so a burst of calls does not fetch 27 MB twice. */
     this.pending = new Map();
+
+    /** Defaults for `buildLogicGraph()`; see there for what each one costs. */
+    this.graphOptions = { ...graphOptions };
+    /** @type {Graph|null} The ported network, once M12b has built one. */
+    this.logicGraph = null;
+    /** @type {object|null} Projection + scale the graph was built in. */
+    this.plane = null;
+    /** @type {{stats: object, notes: string[]}|null} */
+    this.graphInfo = null;
+    /** POI index -> Place id, so a route can name what it passes. */
+    this._placeIdByPoi = [];
+    /** Where `Graph`'s route callback deposits its result, synchronously. */
+    this._routeSink = [];
+  }
+
+  /* ------------------------------------------------------- M12b · the graph -- */
+
+  /**
+   * Build the routing network from the geometry already loaded, and declare
+   * `graph` + `routing` if — and only if — one came out.
+   *
+   * **The projection.** `lib/logic/*` is a plane-geometry engine: `Coords` does
+   * Pythagoras, `Edge` is a straight line, and `graph.js` defines north as the
+   * versor `(0, -1)`, i.e. **y grows downward**. So lng/lat cannot be fed to it
+   * directly — a degree of longitude is not a degree of latitude, and latitude
+   * increasing northward would mirror every spoken direction. The plane is
+   * therefore local metres about the window: x east from `minLng`, y **south**
+   * from `maxLat`, with the same flat `M_PER_DEG · cos(lat)` approximation
+   * `#dist` already uses, taken at the window's centre latitude rather than
+   * per-pair. Over a window that is a sub-percent error and it is being compared
+   * against a fingertip. An `enu` world is already metric and only needs the y
+   * flip.
+   *
+   * **The scale knob.** `Graph` expresses its thresholds in *inches of printed
+   * material* and multiplies them by `feetsPerInch` to reach map units —
+   * `SNAP_MIN_DISTANCE` is a 0.25-inch fingertip, `AM_I_THRESHOLD` 0.75 inches.
+   * The name is the Python's; the quantity is "map units per print inch". Map
+   * units here are metres, so it is metres-per-inch, derived from the window
+   * width and the material width. Everything downstream stays coherent:
+   * `getDistance` returns metres snapped to 10, `NEARBY_THRESHOLD` is 700 m, and
+   * `WayPoint.distance` comes out in print inches to one decimal.
+   *
+   * **The cost.** `new Graph()` runs Floyd–Warshall once, O(V³). That is the
+   * whole point — every later route is a matrix walk — but it is also why
+   * `maxNodes` exists and why this is a separate call rather than a side effect
+   * of `loadMapDefinition()`: 27 MB of layers is a "preparing map" step already
+   * (§8), and whether a map is worth precomputing is the caller's decision.
+   *
+   * @param {object} [options]
+   * @param {number} [options.snapTolerance] Two vertices this close are one
+   *   junction, **in plane units** — metres in a geographic world. Defaults to a
+   *   thousandth of the window width, capped at 1 m: 1 m is the quantum of the
+   *   5-decimal-place truncation layerloader applies (§0.3), so nothing finer is
+   *   signal, but a cap alone is wrong for an `enu` diagram whose whole extent
+   *   may be a couple of units across — a fixed metre would weld it into one
+   *   node and report "no linear features".
+   * @param {number} [options.maxNodes=DEFAULT_MAX_NODES]
+   * @param {number} [options.maxPois]
+   * @param {boolean} [options.includePolygonBoundaries=false]
+   * @param {number} [options.materialWidthInches]
+   * @param {number} [options.unitsPerInch] Overrides the derivation entirely.
+   * @returns {{ok: boolean, reason?: string, stats: object, notes: string[]}}
+   */
+  buildLogicGraph(options = {}) {
+    const opts = { ...this.graphOptions, ...options };
+    const {
+      snapTolerance,
+      maxNodes = DEFAULT_MAX_NODES,
+      maxPois,
+      includePolygonBoundaries = false,
+      materialWidthInches = DEFAULT_MATERIAL_WIDTH_INCHES,
+      unitsPerInch,
+    } = opts;
+
+    this.#detachLogicGraph();
+
+    if (!this.places.length || !this.bbox) {
+      return {
+        ok: false,
+        reason: 'Nothing is loaded yet — call loadMapDefinition() before building the graph.',
+        stats: {},
+        notes: [],
+      };
+    }
+
+    const plane = this.#buildPlane(materialWidthInches, unitsPerInch);
+    const snap = Number.isFinite(snapTolerance) && snapTolerance >= 0
+      ? snapTolerance
+      : Math.min(1, plane.widthUnits / 1000);
+    const built = buildGraphDict(this.places, plane.toPlane, {
+      snapTolerance: snap,
+      maxNodes,
+      ...(maxPois === undefined ? {} : { maxPois }),
+      includePolygonBoundaries,
+    });
+
+    for (const note of built.notes) this.notes.push(`graph: ${note}`);
+    if (!built.ok) {
+      this.graphInfo = { stats: built.stats, notes: built.notes, reason: built.reason };
+      return { ok: false, reason: built.reason, stats: built.stats, notes: built.notes };
+    }
+
+    const graph = new Graph(built.graphDict, {
+      feetsPerInch: plane.unitsPerInch,
+      // The adapter's own `resolvePlace` is the gate on what the model may talk
+      // about, so `enablePois` is not also one: `llmEnabled: false` starts every
+      // POI enabled, which is what `getNearbyPois`/`getNearestPoi` need to be
+      // answerable at all.
+      llmEnabled: false,
+      onRoute: (action, start, streetByStreet, waypoints) =>
+        this._routeSink.push({ action, start, streetByStreet, waypoints }),
+    });
+
+    this.attachLogicGraph(graph, { plane, placeIdByPoi: built.placeIdByPoi, stats: built.stats, notes: built.notes });
+    return { ok: true, stats: built.stats, notes: built.notes };
+  }
+
+  /**
+   * Adopt an already-built `Graph` and declare the capabilities it earns.
+   *
+   * `buildLogicGraph()` is the normal way in; this stays public because a caller
+   * that already has a camio-model `Graph` for the same window (the parity
+   * benchmark, a hand-authored network) should not have to go through GeoJSON to
+   * use it. Declaring `graph`/`routing` any earlier than here would offer the
+   * model a tool that cannot run — the failure mode `worldAdapter.js` names.
+   *
+   * @param {Graph} graph
+   * @param {object} [meta]
+   * @param {object} [meta.plane] Projection; required unless one is already set.
+   * @param {string[]} [meta.placeIdByPoi]
+   */
+  attachLogicGraph(graph, meta = {}) {
+    if (!(graph instanceof Graph)) {
+      throw new Error('AudiomWorldAdapter.attachLogicGraph: expects a Graph from lib/logic/graph.js — build one with buildLogicGraph().');
+    }
+    const plane = meta.plane || this.plane;
+    if (!plane) {
+      throw new Error('AudiomWorldAdapter.attachLogicGraph: a graph needs the projection it was built in; pass meta.plane.');
+    }
+
+    this.logicGraph = graph;
+    this.plane = plane;
+    this._placeIdByPoi = meta.placeIdByPoi || [];
+    this.graphInfo = { stats: meta.stats || {}, notes: meta.notes || [] };
+    this.capabilities.add(CAPABILITIES.GRAPH);
+    this.capabilities.add(CAPABILITIES.ROUTING);
+    return this.graphInfo;
+  }
+
+  /** Drop the graph and the capabilities it earned. Idempotent. */
+  #detachLogicGraph() {
+    this.logicGraph = null;
+    this.plane = null;
+    this.graphInfo = null;
+    this._placeIdByPoi = [];
+    this._routeSink.length = 0;
+    this.capabilities.delete(CAPABILITIES.GRAPH);
+    this.capabilities.delete(CAPABILITIES.ROUTING);
+  }
+
+  /**
+   * The window's local metric plane, plus the scale `Graph` measures print
+   * inches in. See `buildLogicGraph` for why both exist.
+   */
+  #buildPlane(materialWidthInches, unitsPerInchOverride) {
+    const [minX, minY, maxX, maxY] = this.bbox;
+    const geographic = this.frame === FRAMES.GEOGRAPHIC;
+    const kx = geographic ? M_PER_DEG * Math.cos(((minY + maxY) / 2) * DEG) : 1;
+    const ky = geographic ? M_PER_DEG : 1;
+
+    const widthUnits = Math.abs(maxX - minX) * kx;
+    const inches = Number.isFinite(materialWidthInches) && materialWidthInches > 0
+      ? materialWidthInches
+      : DEFAULT_MATERIAL_WIDTH_INCHES;
+
+    return {
+      frame: this.frame,
+      bbox: [minX, minY, maxX, maxY],
+      kx,
+      ky,
+      widthUnits,
+      // Never zero: a degenerate window would make every threshold zero and
+      // `snapToGraph` would stop snapping at all.
+      unitsPerInch:
+        Number.isFinite(unitsPerInchOverride) && unitsPerInchOverride > 0
+          ? unitsPerInchOverride
+          : Math.max(widthUnits / inches, Number.MIN_VALUE),
+      materialWidthInches: inches,
+      /** Frame coords -> plane metres, y **down**. */
+      toPlane: (x, y) => [(x - minX) * kx, (maxY - y) * ky],
+      /** Plane metres -> frame coords. */
+      fromPlane: (px, py) => [minX + px / kx, maxY - py / ky],
+    };
   }
 
   /* ------------------------------------------------------------------ seams -- */
-
-  /**
-   * SEAM — M12b (logic graph / routing).
-   *
-   * M12b ports `simple_camio_llm`'s graph builder onto this world: it will consume
-   * `this.places` plus the LineString layers, produce `Segment`/`Node` records, and
-   * call this method to attach them. At that point — and only at that point — the
-   * adapter adds `graph` and `routing` to `this.capabilities` and overrides
-   * `route()`. Declaring either earlier would offer the model a tool that cannot
-   * run, which `worldAdapter.js` calls out as the failure mode that matters.
-   *
-   * @param {{segments: object[], nodes: object[]}} _graph
-   */
-  attachLogicGraph(_graph) {
-    throw new Error('AudiomWorldAdapter.attachLogicGraph: the logic graph arrives in M12b; until then this adapter declares only "places".');
-  }
 
   /**
    * SEAM — M5b (`liveFeatureStream`).
@@ -482,6 +749,10 @@ export class AudiomWorldAdapter extends WorldAdapter {
     this._index = [];
     for (const layer of layers) this.#ingest(layer, record.cachedAt);
     if (!this.explicitBbox) this.bbox = this.#deriveBbox();
+    // A graph is a projection of one window over one set of places. Both just
+    // changed, so anything attached is stale — and a stale graph would keep
+    // `routing` declared while routing the previous map.
+    this.#detachLogicGraph();
 
     return {
       mapDefinitionId: String(mapDefinitionId),
@@ -655,10 +926,15 @@ export class AudiomWorldAdapter extends WorldAdapter {
     return Number.isFinite(minX) ? [minX, minY, maxX, maxY] : null;
   }
 
-  /** Re-window without refetching. The place model is window-independent. */
+  /**
+   * Re-window without refetching. The place model is window-independent; the
+   * logic graph is not — it is built in a plane anchored to the window's corner
+   * — so it is dropped and must be rebuilt if routing is still wanted.
+   */
   setWindow(bbox) {
     this.bbox = bbox ? [...bbox] : this.#deriveBbox();
     this.explicitBbox = Boolean(bbox);
+    this.#detachLogicGraph();
     return this.bbox;
   }
 
@@ -669,20 +945,28 @@ export class AudiomWorldAdapter extends WorldAdapter {
    *
    * Geographic interpolates longitude linearly and latitude in Web-Mercator Y,
    * because that is what Audiom renders and therefore what a print of it depicts.
-   * ENU interpolates both linearly. These are `audiom.js`'s `uvToLngLat` and
-   * `uvToEastNorth` respectively, and must stay numerically identical to them —
-   * a tactile material calibrated against one and queried through the other would
-   * be wrong by the Mercator error, which is metres at city scale and kilometres
-   * at 885's.
+   * ENU interpolates both linearly.
+   *
+   * These ARE `audiom.js`'s `uvToLngLat` and `uvToEastNorth` — imported, not
+   * re-derived, which is the §5.1 debt discharged. It matters because a material
+   * calibrated through one spelling and queried through another is wrong by the
+   * Mercator error: metres at city scale, kilometres at 885's. The two copies
+   * this replaces were *not* in fact bit-identical to the originals — they
+   * spelled the degree conversion `lat * (π/180)` and `y / (π/180)` where
+   * `audiom.js` writes `(lat * π) / 180` and `(y * 180) / π`, which disagree in
+   * the last bit for about a quarter of all inputs. The disagreement was
+   * ~4 × 10⁻¹⁴° (nanometres) on 885's window, so nothing was ever visibly wrong;
+   * having one copy is how it stays that way.
    */
   #uvToXY(u, v) {
     if (!this.bbox) throw new Error('AudiomWorldAdapter: no window — call loadMapDefinition() or setWindow() first.');
     const [minX, minY, maxX, maxY] = this.bbox;
-    const x = minX + u * (maxX - minX);
-    if (this.frame !== FRAMES.GEOGRAPHIC) return [x, maxY - v * (maxY - minY)];
-    const yTop = mercY(maxY);
-    const yBot = mercY(minY);
-    return [x, invMercY(yTop + v * (yBot - yTop))];
+    if (this.frame !== FRAMES.GEOGRAPHIC) {
+      const { e, n } = uvToEastNorth(u, v, { e0: minX, n0: minY, e1: maxX, n1: maxY });
+      return [e, n];
+    }
+    const { lng, lat } = uvToLngLat(u, v, this.bbox);
+    return [lng, lat];
   }
 
   /** Inverse of `#uvToXY`. Not clamped: off-window points report u/v outside 0..1. */
@@ -747,6 +1031,50 @@ export class AudiomWorldAdapter extends WorldAdapter {
     return best;
   }
 
+  /**
+   * `#distanceTo` plus the point that won, which is what a *direction* needs.
+   *
+   * Kept separate rather than folded into `#distanceTo` because that one runs
+   * over 3,004 features per `nearby()` call and must not allocate a tuple per
+   * feature; this one runs against a single already-resolved target.
+   *
+   * @returns {{distance: number, point: number[]|null, inside: boolean}}
+   */
+  #nearestPointOn(g, x, y) {
+    if (g.polygons.some((rings) => pointInPolygon(x, y, rings))) {
+      return { distance: 0, point: [x, y], inside: true };
+    }
+    let best = Infinity;
+    let winner = null;
+    for (const p of g.points) {
+      const d = this.#dist(x, y, p[0], p[1]);
+      if (d < best) { best = d; winner = p; }
+    }
+    return { distance: Number.isFinite(best) ? best : Infinity, point: winner, inside: false };
+  }
+
+  /** The `_index` entry for a Place, or null. */
+  #indexOf(place) {
+    return this._index.find((g) => g.place === place || g.place?.id === place?.id) || null;
+  }
+
+  /**
+   * Resolve a `distanceTo` / `bearingTo` target to `{g, place}`.
+   * @returns {{g: object, place: object}|import('../worldAdapter.js').Ambiguous|null}
+   */
+  #target(target) {
+    if (!target) return null;
+    if (typeof target === 'string') {
+      const hit = this.resolvePlace(target);
+      if (hit === null) return null;
+      if (isAmbiguous(hit)) return hit;
+      return this.#target(hit);
+    }
+    const g = this.#indexOf(target);
+    if (!g || !g.points?.length) return null;
+    return { g, place: g.place };
+  }
+
   /* -------------------------------------------------------------- resolution -- */
 
   /**
@@ -801,13 +1129,30 @@ export class AudiomWorldAdapter extends WorldAdapter {
    * feature within `toleranceFraction` of the window diagonal, which is what makes
    * a point or a line answerable at all.
    *
+   * **`segment` / `node` (M7).** M12b built the topology and left this seam
+   * open: once a graph is attached, the same point is snapped onto it and the
+   * winning `Edge` / `Node` is reported alongside the place. `snapToGraph` is
+   * used **unforced**, so nothing is reported unless the finger is genuinely
+   * within `SNAP_MIN_DISTANCE` (a 0.25-inch fingertip, scaled to map units) —
+   * forcing it would attach a segment to every touch anywhere on the sheet.
+   *
+   * The cost is `getNearestNode` + `getNearestEdge`, both O(network), so it is
+   * gated on a graph existing and can be turned off per call. That is fine for
+   * the dispatcher, which calls `at()` once per turn against a frozen context,
+   * and would not be fine on a per-frame path.
+   *
+   * `node.position` / `segment` positions are frame-native (`{lng, lat}` or
+   * `{e, n}`). No `u`/`v` leaves this method: `(u, v)` is a perception artifact
+   * and is converted once, here, exactly as `route()` does.
+   *
    * @param {number} u @param {number} v
-   * @param {{tolerance?: number}} [opts] `tolerance` in frame units.
+   * @param {{tolerance?: number, includeGraph?: boolean}} [opts] `tolerance` in frame units.
    * @returns {import('../worldAdapter.js').AtResult}
    */
-  at(u, v, { tolerance } = {}) {
+  at(u, v, { tolerance, includeGraph = true } = {}) {
     if (!this.places.length || !this.bbox) return {};
     const [x, y] = this.#uvToXY(u, v);
+    const graphPart = includeGraph ? this.#graphAt(x, y) : {};
 
     let containing = null;
     for (const g of this._index) {
@@ -816,7 +1161,7 @@ export class AudiomWorldAdapter extends WorldAdapter {
       if (!g.polygons.some((rings) => pointInPolygon(x, y, rings))) continue;
       if (!containing || g.area < containing.area) containing = g;
     }
-    if (containing) return { place: containing.place };
+    if (containing) return { place: containing.place, ...graphPart };
 
     const limit = Number.isFinite(tolerance)
       ? tolerance
@@ -832,15 +1177,68 @@ export class AudiomWorldAdapter extends WorldAdapter {
       const d = this.#distanceTo(g, x, y);
       if (d < bestD) { bestD = d; best = g; }
     }
-    return best && bestD <= limit ? { place: best.place } : {};
+    const place = best && bestD <= limit ? { place: best.place } : {};
+    return { ...place, ...graphPart };
+  }
+
+  /**
+   * The `segment` / `node` half of `at()`. Empty object when no graph is
+   * attached or nothing is within snapping distance — never a partial guess.
+   *
+   * @param {number} x @param {number} y  Frame coordinates.
+   * @returns {{segment?: object, node?: object}}
+   */
+  #graphAt(x, y) {
+    if (!this.logicGraph || !this.plane) return {};
+    const point = this.#planeOf(x, y);
+    const [, snapped] = this.logicGraph.snapToGraph(point);
+    if (snapped instanceof LogicNode) {
+      return {
+        node: {
+          id: snapped.id,
+          position: this.#frameOfPlane(snapped.coords),
+          // `kind` stays undefined on purpose: `kerb` / `crossing` / `junction`
+          // are accessibility claims and §8 forbids stating one this map cannot
+          // support. The topology is real; the classification is not.
+          description: snapped.getShortDescription(),
+          provenance: { source: 'audiom:layers', id: `node:${snapped.id}` },
+        },
+      };
+    }
+    if (snapped instanceof LogicEdge) {
+      return {
+        segment: {
+          id: `edge:${snapped.id}`,
+          fromNode: snapped.node1?.id,
+          toNode: snapped.node2?.id,
+          street: snapped.street,
+          // `getLlmDescription()`, NOT `getCompleteDescription()`. The latter
+          // opens with `this.features[SURFACE]`, and `geojsonGraph.js`
+          // deliberately supplies no `edges_features`, so every edge would
+          // announce itself as "concrete" — `defaultEdgeFeatures`' placeholder
+          // stated as fact. §8: never state flatly what has not been surveyed.
+          // `getLlmDescription()` is pure topology and is always true.
+          description: snapped.getLlmDescription(),
+          provenance: { source: 'audiom:layers', id: `edge:${snapped.id}` },
+        },
+      };
+    }
+    return {};
   }
 
   /**
    * Named places near (u,v), nearest first.
    *
-   * Returns shallow copies carrying `distance` in frame units (metres). `at()`
-   * hands back the canonical object; `nearby()` is a ranking, and the rank is
-   * only interpretable with the distance attached.
+   * Returns shallow copies carrying `distance: {value, units}`. `at()` hands
+   * back the canonical object; `nearby()` is a ranking, and the rank is only
+   * interpretable with the distance attached.
+   *
+   * ⚠️ The `{value, units}` shape is deliberate and was **changed** in M7: this
+   * adapter used to return a bare number while `camioWorldAdapter` returned
+   * `{value, units: 'material_mm'}`. Two shapes across two adapters means every
+   * consumer needs a per-adapter branch, which is precisely the world-specific
+   * knowledge the `WorldAdapter` abstraction exists to eliminate — and the unit
+   * riding in the result is §5.4's own rule.
    *
    * @param {number} u @param {number} v
    * @param {number} [radius] Frame units. Defaults to `radiusFraction` of the diagonal.
@@ -858,9 +1256,9 @@ export class AudiomWorldAdapter extends WorldAdapter {
       if (!g.points.length || !g.bbox) continue;
       if (this.#bboxDistance(g, x, y) > r) continue;
       const d = this.#distanceTo(g, x, y);
-      if (d <= r) hits.push({ ...g.place, distance: d });
+      if (d <= r) hits.push({ ...g.place, distance: { value: d, units: 'metres' } });
     }
-    hits.sort((a, b) => a.distance - b.distance);
+    hits.sort((a, b) => a.distance.value - b.distance.value);
     return hits.slice(0, limit);
   }
 
@@ -877,31 +1275,347 @@ export class AudiomWorldAdapter extends WorldAdapter {
     return this.frame === FRAMES.GEOGRAPHIC ? { lng: x, lat: y } : { e: x, n: y };
   }
 
-  /* ------------------------------------------------------------ not yet ours -- */
-
   /**
-   * The base class would already return `Unsupported` here, since `routing` is not
-   * declared. Overridden only to name the milestone and the alternative: on this
-   * route `route_to` is not "compute a path and speak it" but "drive Audiom's own
-   * avatar and let Audiom's audio do the work" (§2.2).
+   * The isotropic metric plane every bearing and heading is computed in: metres
+   * east of the window's west edge, metres **south** of its north edge.
+   *
+   * Identical in construction to `#buildPlane`'s `toPlane`, and deliberately so
+   * — but available without a graph, because directions are a `places`-tier
+   * answer and must not wait on a Floyd–Warshall. The longitude axis carries the
+   * `cos(midLat)` factor for the same reason `#dist` does: without it a bearing
+   * at Wisconsin's latitude is wrong by ~28 % on its east-west component, which
+   * is more than a whole 45° sector near the diagonals.
+   *
+   * @param {number} u @param {number} v
+   * @returns {{x: number, y: number, units: string}}
    */
-  route(_from, _to, _prefs) {
-    return unsupported(
-      'Routing on this map arrives with the logic graph (M12b). Audiom can still walk you there with its own avatar.',
-      CAPABILITIES.ROUTING,
-    );
+  metricPoint(u, v) {
+    const [x, y] = this.#uvToXY(u, v);
+    const [minX, , , maxY] = this.bbox;
+    const geographic = this.frame === FRAMES.GEOGRAPHIC;
+    const { kx, ky } = this.#metricScale();
+    return {
+      x: geographic ? (x - minX) * kx : x - minX,
+      y: geographic ? (maxY - y) * ky : maxY - y,
+      units: 'metres',
+    };
+  }
+
+  /** Degrees→metres factors at the window's centre latitude. 1 in an `enu` world. */
+  #metricScale() {
+    if (this.frame !== FRAMES.GEOGRAPHIC) return { kx: 1, ky: 1 };
+    const [, minY, , maxY] = this.bbox;
+    return { kx: M_PER_DEG * Math.cos(((minY + maxY) / 2) * DEG), ky: M_PER_DEG };
+  }
+
+  /** @see WorldAdapter#bearingBetween — one implementation, in `direction.js`. */
+  bearingBetween(u0, v0, u1, v1) {
+    if (!this.bbox) return null;
+    return bearingBetweenPoints(this, u0, v0, u1, v1);
   }
 
   /**
-   * Kerbs, inclines and surfaces are a property of a pedestrian graph, and this
-   * world has features rather than edges until M12b builds one. The raw source
-   * attributes are not silently substituted: `props` may well hold a `surface`
-   * key, but answering "is it steep" from an unvalidated source column is exactly
-   * the kind of confident wrongness the capability system exists to prevent.
+   * How close counts as "on or immediately beside". Reuses the very
+   * `toleranceFraction` that `at()` snaps with, so `am_i_at` and `whats_here`
+   * agree by construction rather than by coincidence.
+   */
+  touchTolerance() {
+    return { value: this.windowDiagonal() * this.toleranceFraction, units: 'metres', frame: this.frame };
+  }
+
+  /**
+   * Distance from `(u, v)` to a named target, in metres — this world's natural
+   * unit in both frames.
+   *
+   * The bbox reject is not an optimisation here so much as the difference
+   * between a voice turn feeling immediate and feeling laggy: without it the
+   * vertex walk is O(3,004 features × vertices) and the adapter's own
+   * measurement puts that at ~106 ms.
+   *
+   * @param {number} u @param {number} v @param {string|object} target
+   */
+  distanceTo(u, v, target) {
+    if (!this.places.length || !this.bbox) return null;
+    const resolved = this.#target(target);
+    if (resolved === null) return null;
+    if (isAmbiguous(resolved)) return resolved;
+
+    const [x, y] = this.#uvToXY(u, v);
+    const { distance, inside } = this.#nearestPointOn(resolved.g, x, y);
+    if (!Number.isFinite(distance)) return null;
+    return {
+      value: distance,
+      units: 'metres',
+      frame: this.frame,
+      method: inside ? 'inside' : 'nearest_vertex',
+      place: resolved.place,
+    };
+  }
+
+  /**
+   * Direction from `(u, v)` to a named target.
+   *
+   * `direction: null` when the finger is already inside the target — there is no
+   * honest direction to a place you are standing in, and inventing one ("head
+   * north") would send a finger off the feature it just found.
+   *
+   * @param {number} u @param {number} v @param {string|object} target
+   */
+  bearingTo(u, v, target) {
+    if (!this.places.length || !this.bbox) return null;
+    const resolved = this.#target(target);
+    if (resolved === null) return null;
+    if (isAmbiguous(resolved)) return resolved;
+
+    const [x, y] = this.#uvToXY(u, v);
+    const { distance, point, inside } = this.#nearestPointOn(resolved.g, x, y);
+    if (!point) return null;
+    if (inside || distance === 0) {
+      return {
+        cardinal: null, direction: null, vocabulary: null, degrees: null,
+        frame: this.frame, method: 'inside', place: resolved.place,
+      };
+    }
+    const { kx, ky } = this.#metricScale();
+    // Metric-plane delta, y **down**: metric y is (maxY - lat) * ky, so a target
+    // with a larger latitude has a smaller metric y.
+    const bearing = bearingFromDelta((point[0] - x) * kx, (y - point[1]) * ky, this.frame);
+    if (!bearing) return null;
+    return { ...bearing, method: 'nearest_vertex', place: resolved.place };
+  }
+
+  /* ------------------------------------------------------------- M12b · route -- */
+
+  /**
+   * Resolve one endpoint of a route to a point in the graph plane.
+   *
+   * **World-native coordinates are the addressing primitive here**, and for this
+   * world that is lng/lat. `(u, v)` is a perception artifact — where a finger
+   * landed on a piece of material — and it is converted once, at this boundary,
+   * and never travels back out: every position this method's callers emit is
+   * frame-native. That is also why a bare `{u, v}` is accepted at all: the
+   * dispatcher holds one and should not have to know the projection to spend it.
+   *
+   * @param {*} ref
+   * @returns {{coords: Coords, place?: object, label: string}|import('../worldAdapter.js').Ambiguous|{error: string}}
+   */
+  #endpoint(ref) {
+    if (ref === null || ref === undefined) return { error: 'no location given' };
+
+    // Already in the plane: a Node or PoI handed back from a previous call.
+    if (ref instanceof Coords) return { coords: ref, label: 'a point on the map' };
+    if (ref instanceof LogicNode) return { coords: ref.coords, label: ref.getShortDescription() };
+    if (ref?.coords instanceof Coords && typeof ref.name === 'string') {
+      return { coords: ref.coords, label: ref.name };
+    }
+
+    if (typeof ref === 'string') {
+      const hit = this.resolvePlace(ref);
+      if (hit === null) return { error: `I could not find "${ref}" on this map` };
+      if (isAmbiguous(hit)) return hit;
+      return this.#endpoint(hit);
+    }
+
+    // A Place — ours or shaped like ours.
+    if (ref.geometry || (ref.id && ref.name)) {
+      const point = this.#representativePoint(ref);
+      if (!point) return { error: `"${ref.name || ref.id}" has no geometry to route to` };
+      return { coords: this.#planeOf(point[0], point[1]), place: ref, label: ref.name || String(ref.id) };
+    }
+
+    const geographic = this.frame === FRAMES.GEOGRAPHIC;
+    if (Number.isFinite(ref.u) && Number.isFinite(ref.v)) {
+      const [x, y] = this.#uvToXY(ref.u, ref.v);
+      return { coords: this.#planeOf(x, y), label: 'where you are pointing' };
+    }
+    const x = geographic ? ref.lng ?? ref.x : ref.e ?? ref.x;
+    const y = geographic ? ref.lat ?? ref.y : ref.n ?? ref.y;
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      return { coords: this.#planeOf(x, y), label: 'a point on the map' };
+    }
+
+    return { error: 'that location is not something this map can be addressed by' };
+  }
+
+  /** Frame coords -> plane `Coords`. */
+  #planeOf(x, y) {
+    const [px, py] = this.plane.toPlane(x, y);
+    return new Coords(px, py);
+  }
+
+  /** Plane `Coords` -> frame-native position, the only shape that leaves here. */
+  #frameOfPlane(coords) {
+    const [x, y] = this.plane.fromPlane(coords.x, coords.y);
+    return this.frame === FRAMES.GEOGRAPHIC ? { lng: x, lat: y } : { e: x, n: y };
+  }
+
+  /** Mean of a place's positions — the one point an area can be routed to. */
+  #representativePoint(place) {
+    const known = this._index.find((g) => g.place === place);
+    if (known?.centroid) return known.centroid;
+    let sx = 0;
+    let sy = 0;
+    let n = 0;
+    for (const [x, y] of positions(place.geometry)) {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      sx += x; sy += y; n += 1;
+    }
+    return n ? [sx / n, sy / n] : null;
+  }
+
+  /**
+   * A walking route across the graph built by `buildLogicGraph()`.
+   *
+   * The path itself is `lib/logic/graph.js`'s: `localLegs` reads the
+   * Floyd–Warshall predecessor matrix precomputed at construction, folds
+   * collinear legs at `COLLINEAR_COS`, and `processInstructions` turns the legs
+   * into spoken waypoints. **None of that prose is re-derived here** — headings
+   * are `getDirection` / `getTurningDirection`'s eight `CardinalDirection`s and
+   * their turn-relative continuations ("Continue straight" / "Head north-east"),
+   * which is MapIO's convention and the property `scripts/test_logic_port.mjs`
+   * pins byte for byte. There is no clock face on this route and no bearing
+   * invented at this layer; this method converts endpoints in and positions out,
+   * and otherwise reports what the graph said.
+   *
+   * ⚠️ `RoutePrefs` are **not honoured**. The ported Floyd–Warshall is unweighted
+   * — the Python has no preference model to port — so `streetAvoidance`,
+   * `maxUphill`, `maxDownhill` and `avoidBarriers` cannot change the path. They
+   * are echoed back in `ignoredPrefs` rather than silently dropped, because a
+   * route that quietly ignores "avoid barriers" is worse than one that says it
+   * did.
+   *
+   * @param {*} from @param {*} to
+   * @param {import('../worldAdapter.js').RoutePrefs & {streetByStreet?: boolean}} [prefs]
+   * @returns {import('../worldAdapter.js').Route|import('../worldAdapter.js').Ambiguous|import('../worldAdapter.js').Unsupported}
+   */
+  route(from, to, prefs = {}) {
+    if (!this.logicGraph) {
+      return unsupported(
+        this.places.length
+          ? 'This map has no routing network yet — build one with buildLogicGraph(). Audiom can still walk you there with its own avatar.'
+          : 'Nothing is loaded yet, so there is nothing to route across.',
+        CAPABILITIES.ROUTING,
+      );
+    }
+
+    const a = this.#endpoint(from);
+    if (isAmbiguous(a)) return a;
+    if (a.error) return unsupported(`I could not work out where to start: ${a.error}.`, CAPABILITIES.ROUTING);
+
+    const b = this.#endpoint(to);
+    if (isAmbiguous(b)) return b;
+    if (b.error) return unsupported(`I could not work out where to finish: ${b.error}.`, CAPABILITIES.ROUTING);
+
+    const streetByStreet = prefs.streetByStreet !== false;
+    const ignoredPrefs = ['streetAvoidance', 'maxUphill', 'maxDownhill', 'avoidBarriers']
+      .filter((k) => prefs[k] !== undefined && prefs[k] !== null && prefs[k] !== false);
+
+    this._routeSink.length = 0;
+    try {
+      this.logicGraph.guideToDestination(a.coords, b.coords, streetByStreet);
+    } catch (err) {
+      // `guideToDestination` guards its own leg computation but not
+      // `processInstructions`, whose `getCrossings` walks the predecessor matrix
+      // and throws "Points are not connected" on a partly-reachable pair. An
+      // eighth reference-implementation fragility, contained here rather than
+      // allowed to kill the turn.
+      return unsupported(
+        `I could not describe a route between those two places (${err?.message || err}).`,
+        CAPABILITIES.ROUTING,
+      );
+    }
+
+    const result = this._routeSink[this._routeSink.length - 1];
+    this._routeSink.length = 0;
+
+    if (!result || result.action === RouteAction.ERROR || !result.waypoints?.length) {
+      return unsupported(
+        `There is no path on this map between ${a.label} and ${b.label}.`,
+        CAPABILITIES.ROUTING,
+      );
+    }
+
+    // `guideToDestination` snapped the start onto the network before routing;
+    // the legs begin there, not at the raw point, so the first leg is measured
+    // from the same place the graph measured it from.
+    const start = this.logicGraph.snapToGraph(a.coords, true)[0];
+
+    /** @type {object[]} */
+    const segments = [];
+    /** @type {object[]} */
+    const waypoints = [];
+    let previous = start;
+    let distance = 0;
+
+    result.waypoints.forEach((wp, i) => {
+      const legLength = previous.distanceTo(wp.coords);
+      distance += legLength;
+
+      const destination = wp.destination;
+      const endsAtNode = destination instanceof LogicNode;
+      const endsAtEdge = destination instanceof LogicEdge;
+
+      segments.push({
+        id: `leg:${i}`,
+        fromNode: i === 0 ? 'start' : segments[i - 1].toNode,
+        toNode: endsAtNode ? destination.id : i === result.waypoints.length - 1 ? 'destination' : `pt:${i}`,
+        kind: endsAtNode ? 'junction-leg' : endsAtEdge ? 'block-leg' : 'final-leg',
+        street: endsAtEdge ? destination.street : undefined,
+        // Frame units, and metres in both frames — §5.4's rule that the unit
+        // rides along with the number.
+        distance: legLength,
+        direction: wp.direction,
+        instructions: wp.instructions,
+        to: this.#frameOfPlane(wp.coords),
+        provenance: { source: 'audiom:layers', id: `${this.definition?.id ?? ''}:leg:${i}` },
+      });
+
+      waypoints.push({
+        instructions: wp.instructions,
+        direction: wp.direction,
+        name: wp.name,
+        position: this.#frameOfPlane(wp.coords),
+        distance: legLength,
+      });
+
+      previous = wp.coords;
+    });
+
+    const geographic = this.frame === FRAMES.GEOGRAPHIC;
+    return {
+      frame: this.frame,
+      distance,
+      // §5.4: a duration is a claim about walking, which a diagram cannot make.
+      duration: geographic ? distance / WALK_SPEED_MPS : undefined,
+      segments,
+      waypoints,
+      instructions: waypoints.map((w) => w.instructions),
+      streetByStreet,
+      from: { label: a.label, position: this.#frameOfPlane(start) },
+      to: { label: b.label, position: this.#frameOfPlane(result.waypoints[result.waypoints.length - 1].coords) },
+      ignoredPrefs,
+      provenance: {
+        source: 'audiom:layers',
+        mapDefinitionId: this.definition?.id,
+        cachedAt: this.places[0]?.provenance?.cachedAt,
+      },
+    };
+  }
+
+  /* ------------------------------------------------------------ not yet ours -- */
+
+  /**
+   * Kerbs, inclines, surfaces and crossings stay unavailable even now that a
+   * graph exists, and that is the point: M12b built the *topology*, not the
+   * attributes. `geojsonGraph.js` deliberately leaves `edges_features` empty
+   * rather than mapping a source column called `surface` onto `Edge`'s
+   * `surface`, because `Edge.getCompleteDescription()` would then state it
+   * flatly. §8 is explicit — never say a crossing has a kerb ramp. Real
+   * attributes arrive with a validated pedestrian source (M10/M11).
    */
   attributes(_segmentOrNode) {
     return unsupported(
-      'This map has no pedestrian graph yet, so kerb, incline and surface are not available (M12b).',
+      'This map has a routing network but no validated kerb, incline or surface data, so those are not available (M10/M11).',
       CAPABILITIES.ACCESSIBILITY_ATTRS,
     );
   }

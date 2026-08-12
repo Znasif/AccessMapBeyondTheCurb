@@ -6,18 +6,48 @@
  */
 
 // ---- config (works with the existing .env; VITE_AUDIOM_ORIGIN is optional) ----
-const EMBED_URL = (import.meta.env.VITE_AUDIOM_EMBED_URL || '').trim();
+
+/**
+ * Read one `import.meta.env` key without assuming a bundler is present.
+ *
+ * DEBT DISCHARGED (plan §5.1, "Known debts"): this module used to dereference
+ * `import.meta.env` at *module scope*. In Node `import.meta` exists but
+ * `import.meta.env` does not, so the very first statement of the file threw
+ * `TypeError: Cannot read properties of undefined` and nothing outside Vite
+ * could import it — which is why `lib/adapters/audiomWorldAdapter.js` carried
+ * its own copies of `uvToLngLat` / `uvToEastNorth` instead of importing them.
+ *
+ * The read is now inside a function, and the *shape* Vite statically replaces
+ * (`import.meta.env.VITE_FOO`, spelled out literally) is preserved at each call
+ * site — `envValue(() => import.meta.env.VITE_X)`. Under Vite the thunk body is
+ * rewritten to a literal before it ever runs; under Node it throws on the first
+ * dereference and the `catch` supplies `''`. So the browser build is byte-for-
+ * byte what it was, and `node -e "import('./src/audiom.js')"` now works.
+ *
+ * @param {() => unknown} read A thunk containing exactly one `import.meta.env.X`.
+ * @returns {string} The trimmed value, or `''` when it is absent or unreadable.
+ */
+function envValue(read) {
+  try {
+    const v = read();
+    return typeof v === 'string' ? v.trim() : '';
+  } catch {
+    return '';
+  }
+}
+
+const EMBED_URL = envValue(() => import.meta.env.VITE_AUDIOM_EMBED_URL);
 export const AUDIOM_ORIGIN = (() => {
-  const explicit = (import.meta.env.VITE_AUDIOM_ORIGIN || '').trim();
+  const explicit = envValue(() => import.meta.env.VITE_AUDIOM_ORIGIN);
   if (explicit) return explicit.replace(/\/$/, '');
   try { return new URL(EMBED_URL).origin; } catch { /* noop */ }
   return 'https://audiom-staging.herokuapp.com';
 })();
 // Prefer the full-access key: it resolves pre-configured embeds (e.g. /embed/570,
 // the human skeleton). The standard key only works for dynamic `sources`.
-export const AUDIOM_KEY = (
-  import.meta.env.VITE_AUDIOM_FULL_ACCESS_KEY || import.meta.env.VITE_AUDIOM_KEY || ''
-).trim();
+export const AUDIOM_KEY =
+  envValue(() => import.meta.env.VITE_AUDIOM_FULL_ACCESS_KEY) ||
+  envValue(() => import.meta.env.VITE_AUDIOM_KEY);
 
 // ---- 1. parse a map id from a pasted Audiom URL or bare id ----
 // Accepts "885", ".../maps/d/885", ".../embed/885", ".../map/885" (+ query/hash).
@@ -102,14 +132,31 @@ export function parseAudiomSources(input) {
 }
 
 // ---- 3. Web-Mercator helpers ----
+// Exported because they are the single source of truth for the (u,v) ↔ map
+// mapping: `lib/adapters/audiomWorldAdapter.js` imports them rather than
+// re-deriving them, so a material calibrated through `uvToLngLat` and queried
+// through the adapter cannot drift apart. Every expression below is byte-for-
+// byte the one this file has always used — `(lat * Math.PI) / 180` and
+// `(… * 180) / Math.PI` are NOT interchangeable with `lat * DEG` and `… / DEG`
+// at the last bit, and the adapter's deleted copies used the latter spelling.
 const TILE = 512;
-const mercX = (lng) => (lng + 180) / 360;
-const mercY = (lat) => {
-  const s = Math.sin((lat * Math.PI) / 180);
+
+/** Web-Mercator is undefined at the poles; this is where the projection is cut. */
+export const MAX_MERC_LAT = 85.05112878;
+
+/** @param {number} lat @returns {number} `lat` clamped into the Mercator domain. */
+export const clampMercLat = (lat) => Math.min(MAX_MERC_LAT, Math.max(-MAX_MERC_LAT, lat));
+
+export const mercX = (lng) => (lng + 180) / 360;
+export const mercY = (lat) => {
+  // The clamp is a domain guard, not a change of numbers: it is the identity on
+  // |lat| <= MAX_MERC_LAT, which is every latitude Audiom can render, and it
+  // replaces the `Infinity` this returned at |lat| = 90.
+  const s = Math.sin((clampMercLat(lat) * Math.PI) / 180);
   return 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI);
 };
-const invMercX = (x) => x * 360 - 180;
-const invMercY = (y) => (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180) / Math.PI;
+export const invMercX = (x) => x * 360 - 180;
+export const invMercY = (y) => (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180) / Math.PI;
 
 // ---- 4. center+zoom+pixel-size -> geographic bbox [minLng,minLat,maxLng,maxLat] ----
 // width/height are the iframe pixel size; use the physical material's aspect ratio.

@@ -10,6 +10,16 @@ Tuned for the llama.cpp router serving [l1]/[l3] from ~/.config/abtc/models.ini.
   ./eval_tools.py --server http://127.0.0.1:11434/v1   # through the SSH tunnel
   ./eval_tools.py --simulate-loop --profile osm_full
   ./eval_tools.py --reasoning                      # measure the CoT cost
+
+RECONCILED (design doc §10 open risk): this used to build its own flat system
+prompt and a hand-rolled capability filter, which measured a different thing
+from the real §4.3 candidate path in `src/lib/candidateContext.js` /
+`src/lib/toolFilter.js`. It now shells out to Node and calls those modules
+directly for every case's system prompt, user turn, and filtered tool list --
+see `compile_cases_via_candidate_path()` below. That keeps the prompt logic in
+exactly one place (JS); porting it into Python would have recreated the same
+drift this reconciliation is fixing. Node is a hard dependency of this script
+as a result -- there is no Python fallback path, by design.
 """
 
 import os
@@ -17,6 +27,7 @@ import sys
 import json
 import time
 import argparse
+import subprocess
 import urllib.request
 import urllib.error
 from datetime import datetime
@@ -38,51 +49,146 @@ def load_dataset(dataset_path):
         return json.load(f)
 
 
-def filter_tools_for_profile(schema_data, profile_name):
-    profiles = schema_data.get("capabilityProfiles", {})
-    all_tools = schema_data.get("tools", [])
-
-    if profile_name not in profiles:
-        print(f"[WARN] Profile '{profile_name}' not found in schema. Serving all tools.")
-        active_caps = None
-    else:
-        active_caps = set(profiles[profile_name].get("caps", []))
-
-    filtered = []
-    for tool_entry in all_tools:
-        requires = tool_entry.get("requires", [])
-        if active_caps is not None and not all(cap in active_caps for cap in requires):
-            continue
-
-        tool_copy = json.loads(json.dumps(tool_entry))
-        fn = tool_copy.get("function", {})
-
-        # Audiom tier C special case: narrow route_to enum to fly_me_there
-        if profile_name == "audiom_tier_c" and fn.get("name") == "route_to":
-            props = fn.get("parameters", {}).get("properties", {})
-            if "mode" in props:
-                props["mode"]["enum"] = ["fly_me_there"]
-
-        clean_tool = {
-            "type": tool_copy.get("type", "function"),
-            "function": {
-                "name": fn.get("name"),
-                "description": fn.get("description"),
-                "parameters": fn.get("parameters", {}),
-            },
-        }
-        filtered.append(clean_tool)
-
-    return filtered
+# Frame per `capability_profile`, needed because `toolFilter.filterTools()` (the
+# real dispatcher's filter) gates on capability AND frame -- e.g. get_crossing_info,
+# get_segment_accessibility, find_accessible_entrance, set_route_preferences and
+# stop_navigation all carry `"frames": ["geographic"]`, and get_distance_to's
+# `units` enum is narrowed differently per frame (§5.4). The dataset only tags
+# capability_profile, not frame, so this map is the missing link -- sourced from
+# design doc §3.1-§3.3, one frame per world/route:
+#   osm_full, osm_places_only -> geographic  (§3.1: the OSM/OpenSidewalks route)
+#   audiom_tier_c             -> enu         (§3.2: tier C is an opaque oracle
+#                                              probe with "no geometry ... You
+#                                              cannot build a graph"; treated as
+#                                              unreferenced-to-WGS84 ENU, never
+#                                              geographic)
+#   camio                     -> image       (§3.3, stated explicitly: "Frame:
+#                                              image (template pixels)")
+# audiom_tier_a is NOT in the current 21-case dataset. §3.2 itself calls its
+# frame "geographic or ENU" (depends on the fetched source), so there is no
+# single correct default yet. "enu" below is a placeholder for if/when a
+# tier-A case is added -- revisit against the real source before trusting it.
+PROFILE_FRAMES = {
+    "osm_full": "geographic",
+    "osm_places_only": "geographic",
+    "audiom_tier_a": "enu",  # placeholder -- §3.2 leaves this genuinely ambiguous
+    "audiom_tier_c": "enu",
+    "camio": "image",
+}
 
 
-def validate_dataset(dataset, schema_data):
-    """Catch impossible expectations before spending minutes of inference on them."""
+def compile_cases_via_candidate_path(dataset, schema_path, repo_root, node_bin="node"):
+    """Compile every case's system prompt, user turn, and filtered tool list by
+    calling the real candidate-path modules in Node -- NOT a Python reimplementation.
+
+    `src/lib/candidateContext.js` (buildSystemPrompt/buildUserTurn) and
+    `src/lib/toolFilter.js` (filterTools, capability+frame aware) are the single
+    source of truth for §4.3's prompt construction; this only marshals JSON in and
+    out of them. Duplicating that logic in Python is exactly the drift this
+    reconciliation removes -- see the module docstring.
+    """
+    candidate_context_path = os.path.join(repo_root, "starter", "src", "lib", "candidateContext.js")
+    tool_filter_path = os.path.join(repo_root, "starter", "src", "lib", "toolFilter.js")
+    for p, label in ((candidate_context_path, "candidateContext.js"), (tool_filter_path, "toolFilter.js")):
+        if not os.path.exists(p):
+            print(f"[ERROR] Cannot reconcile: {label} not found at {p}")
+            sys.exit(1)
+
+    node_script = f"""
+import {{ readFileSync }} from 'fs';
+import {{ buildSystemPrompt, buildUserTurn }} from {json.dumps(candidate_context_path)};
+import {{ filterTools }} from {json.dumps(tool_filter_path)};
+
+const input = JSON.parse(readFileSync(0, 'utf-8'));
+const schema = JSON.parse(readFileSync(input.schemaPath, 'utf-8'));
+const systemPrompt = buildSystemPrompt();
+const toolCache = new Map();
+
+const out = input.cases.map((tc) => {{
+  const frame = input.profileFrames[tc.profile];
+  if (!frame) {{
+    throw new Error(`No frame mapping for capability_profile "${{tc.profile}}" (add it to PROFILE_FRAMES in eval_tools.py)`);
+  }}
+  const profileSchema = schema.capabilityProfiles[tc.profile];
+  if (!profileSchema) {{
+    throw new Error(`Unknown capability_profile "${{tc.profile}}" -- not in schema.capabilityProfiles`);
+  }}
+  const cacheKey = tc.profile + '::' + frame;
+  if (!toolCache.has(cacheKey)) {{
+    const capabilities = new Set(profileSchema.caps || []);
+    toolCache.set(cacheKey, filterTools(schema, {{ capabilities, frame }}));
+  }}
+  const matches = (tc.resolvedPlaces || []).map((name) => ({{ name }}));
+  return {{
+    id: tc.id,
+    systemPrompt,
+    userMessage: buildUserTurn(matches, tc.utterance),
+    tools: toolCache.get(cacheKey),
+  }};
+}});
+
+process.stdout.write(JSON.stringify(out));
+"""
+
+    payload = {
+        "schemaPath": schema_path,
+        "profileFrames": PROFILE_FRAMES,
+        "cases": [
+            {
+                "id": tc["id"],
+                "profile": tc.get("capability_profile", "osm_full"),
+                "utterance": tc["utterance"],
+                "resolvedPlaces": tc.get("context", {}).get("resolved_places", []),
+            }
+            for tc in dataset
+        ],
+    }
+
+    try:
+        proc = subprocess.run(
+            [node_bin, "--input-type=module", "-e", node_script],
+            input=json.dumps(payload).encode("utf-8"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+        )
+    except FileNotFoundError:
+        print(f"[ERROR] '{node_bin}' not found. This harness now drives the real candidate-path\n"
+              f"        prompt builder in src/lib/candidateContext.js and src/lib/toolFilter.js\n"
+              f"        via Node -- Node is a required dependency, not optional. Install Node or\n"
+              f"        pass --node-bin to point at it.")
+        sys.exit(1)
+
+    if proc.returncode != 0:
+        print("[ERROR] Reconciled prompt compilation failed (Node side):")
+        print(proc.stderr.decode("utf-8", errors="replace"))
+        sys.exit(1)
+
+    try:
+        compiled_list = json.loads(proc.stdout.decode("utf-8"))
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] Node did not return valid JSON: {e}")
+        print(proc.stdout.decode("utf-8", errors="replace")[:2000])
+        sys.exit(1)
+
+    return {c["id"]: c for c in compiled_list}
+
+
+def validate_dataset(dataset, compiled_by_id):
+    """Catch impossible expectations before spending minutes of inference on them.
+
+    Uses the SAME compiled tool list eval_test_case will send to the model
+    (§4.3-accurate: capability *and* frame filtered), not a re-derived one.
+    """
     problems = []
     for tc in dataset:
-        prof = tc.get("capability_profile", "osm_full")
-        offered = {t["function"]["name"] for t in filter_tools_for_profile(schema_data, prof)}
+        compiled = compiled_by_id.get(tc["id"])
+        if compiled is None:
+            problems.append(f"  {tc['id']}: no compiled prompt (compilation step did not cover this case)")
+            continue
+        offered = {t["function"]["name"] for t in compiled["tools"]}
         exp = tc.get("expected_tool")
+        prof = tc.get("capability_profile", "osm_full")
         if exp is not None and exp not in offered:
             problems.append(f"  {tc['id']}: expects '{exp}' but profile '{prof}' does not offer it")
     return problems
@@ -189,26 +295,18 @@ def mock_execute_tool(tool_name, args):
     return mock_responses.get(tool_name, {"status": "ok", "message": f"Executed {tool_name}"})
 
 
-def eval_test_case(test_case, schema_data, base_url, model, timeout=120,
+def eval_test_case(test_case, compiled_case, base_url, model, timeout=120,
                    simulate_loop=False, dry_run=False, max_tokens=256, reasoning=False):
     profile = test_case.get("capability_profile", "osm_full")
-    tools = filter_tools_for_profile(schema_data, profile)
+    tools = compiled_case["tools"]
     offered_tool_names = [t["function"]["name"] for t in tools]
 
-    sys_prompt = (
-        "You are an AI assistant for a tactile map exploration application. "
-        "Use function/tool calling when necessary to provide precise answers or change map state. "
-        "If no tool call is required, respond directly with text."
-    )
-
-    context = test_case.get("context", {})
-    resolved_places = context.get("resolved_places", [])
-    if resolved_places:
-        sys_prompt += f"\nCurrently resolved candidate places in window: {json.dumps(resolved_places)}"
-
+    # systemPrompt and userMessage come straight from src/lib/candidateContext.js
+    # (§4.3's V3t prompt) via compile_cases_via_candidate_path() -- this is the
+    # reconciliation: no locally-built flat prompt here anymore.
     messages = [
-        {"role": "system", "content": sys_prompt},
-        {"role": "user", "content": test_case["utterance"]},
+        {"role": "system", "content": compiled_case["systemPrompt"]},
+        {"role": "user", "content": compiled_case["userMessage"]},
     ]
 
     if dry_run:
@@ -395,6 +493,10 @@ def main():
     parser.add_argument("--simulate-loop", action="store_true")
     parser.add_argument("--out-dir", default=os.path.join(repo, "response/llm_eval"))
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--node-bin", default="node",
+                        help="Node executable used to compile prompts from "
+                             "src/lib/candidateContext.js / toolFilter.js (the "
+                             "real candidate path -- see module docstring).")
 
     args = parser.parse_args()
 
@@ -403,10 +505,16 @@ def main():
             print(f"[ERROR] {label} file not found: {path}")
             sys.exit(1)
 
-    schema_data = load_schema(args.schema)
+    load_schema(args.schema)  # fail fast here with a clear path if the schema JSON is malformed
     dataset_data = load_dataset(args.dataset)
 
-    problems = validate_dataset(dataset_data, schema_data)
+    print("Compiling prompts via the real candidate path "
+          "(src/lib/candidateContext.js + toolFilter.js, through Node)...")
+    compiled_by_id = compile_cases_via_candidate_path(
+        dataset_data, args.schema, repo, node_bin=args.node_bin)
+    print(f"Compiled {len(compiled_by_id)} case(s).\n")
+
+    problems = validate_dataset(dataset_data, compiled_by_id)
     if problems:
         print("[ERROR] Dataset expects tools its profile does not offer:")
         print("\n".join(problems))
@@ -443,7 +551,7 @@ def main():
     for tc in dataset_data:
         print(f"Executing [{tc['id']}] '{tc['utterance']}' (profile: {tc.get('capability_profile')})...")
         results.append(eval_test_case(
-            tc, schema_data, args.server, model_name, timeout=args.timeout,
+            tc, compiled_by_id[tc["id"]], args.server, model_name, timeout=args.timeout,
             simulate_loop=args.simulate_loop, dry_run=args.dry_run,
             max_tokens=args.max_tokens, reasoning=args.reasoning))
 

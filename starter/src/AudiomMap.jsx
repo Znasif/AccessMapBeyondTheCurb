@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AUDIOM_ORIGIN, AUDIOM_KEY, buildEmbedSrc, bboxSpanMeters } from './audiom';
+import { createAudiomChannel, INBOUND, whatsHere as whatsHereAnswer } from './lib/audiomChannel';
+import { speak } from './lib/speak';
 
 /** Approx ground distance (m) between two { lng, lat } points. */
 function metersBetween(a, b) {
@@ -27,18 +29,107 @@ function metersBetween(a, b) {
  *  - coordRef  : ref holding the latest fingertip { lng, lat } or null.
  *  - onStart   : called once with the avatar's start [lng,lat] — a point
  *                guaranteed to be inside the map, used to centre the window.
+ *  - featureRef: optional ref this component WRITES the last `featureEntered`
+ *                record into — the outbound mirror of `coordRef`, so the M7
+ *                dispatcher can answer `whats_here` with a synchronous read
+ *                and no round trip (§2.2).
+ *  - onChannel : handed `{ channel, whatsHere }` once the side-effect channel
+ *                exists. The seam M7/M13 drive `moveAvatar`, `executeCommand`
+ *                and `route_to` mode `fly_me_there` through. Pass a stable
+ *                callback: it is re-invoked whenever its identity changes.
+ *
+ * ⚠️ The raw postMessage protocol is NOT owned here any more — it lives in
+ * `lib/audiomChannel.js` (milestone 5b), which is platform-free and covered by
+ * `scripts/test_audiom_channel.mjs`. This component is a consumer.
  */
 export function AudiomMap({
   embedId, mapId, sources, view, bbox, coordRef,
   throttleMs = 500, stepMeters = 0, onEvent, onStart, onBounds,
   syncKey = 0, syncView = false, fill = false,
+  featureRef, onChannel,
 }) {
   const iframeRef = useRef(null);
   const readyRef = useRef(false);
   const lastSentRef = useRef(null);
   const discoveredRef = useRef(false);
   const [status, setStatus] = useState('Idle');
+
+  /**
+   * The last named feature the avatar entered.
+   *
+   * `lastFeatureRef` is the source a dispatcher reads SYNCHRONOUSLY; the
+   * `lastFeature` string exists only so React re-renders the status line. Both
+   * are written in one place, from the one channel event, so they cannot drift.
+   */
+  const lastFeatureRef = useRef(null);
   const [lastFeature, setLastFeature] = useState('');
+
+  /**
+   * One channel for the component's whole life, NOT one per `src`: `post`
+   * resolves `iframeRef.current.contentWindow` lazily, so a reload swaps the
+   * target underneath it without needing a new channel or a new window listener.
+   */
+  const channel = useMemo(() => {
+    if (!AUDIOM_ORIGIN) return null;
+    return createAudiomChannel({
+      origin: AUDIOM_ORIGIN,
+      post: (message, origin) => {
+        const target = iframeRef.current?.contentWindow;
+        if (!target) return false;
+        target.postMessage(message, origin);
+        return true;
+      },
+      subscribe: (handler) => {
+        const onWindowMessage = (e) => handler({ origin: e.origin, data: e.data });
+        window.addEventListener('message', onWindowMessage);
+        return () => window.removeEventListener('message', onWindowMessage);
+      },
+    });
+  }, []);
+  useEffect(() => () => channel?.dispose(), [channel]);
+
+  /**
+   * Console handle. The M7 staleness threshold (`LIVE_FEATURE_MAX_AGE_MS`) is
+   * currently a guess, and the only way to replace it with a number is to watch
+   * a real map. From the browser console, on a live session:
+   *
+   *   audiomChannel.enableFeatureTiming({ label: 'map 885' })
+   *   … move the avatar around for a minute …
+   *   audiomChannel.dumpFeatureTiming()
+   *
+   * Recording is off until that first call, so this costs nothing by default.
+   */
+  useEffect(() => {
+    if (!channel || typeof window === 'undefined') return undefined;
+    window.audiomChannel = channel;
+    return () => { if (window.audiomChannel === channel) delete window.audiomChannel; };
+  }, [channel]);
+
+  /**
+   * L0 `whats_here` (§2.2 / design doc §3.2): a synchronous ref read plus an
+   * utterance, and nothing else. No model, no network, no adjacency — the
+   * payload carries names only, and under tier C that IS the answer.
+   */
+  const whatsHere = useCallback(() => {
+    const answer = whatsHereAnswer(lastFeatureRef.current);
+    speak(answer);
+    return answer;
+  }, []);
+
+  useEffect(() => {
+    if (channel) onChannel?.({ channel, whatsHere });
+  }, [channel, whatsHere, onChannel]);
+
+  // The live feature stream. Names only under tier C — that is the whole answer,
+  // and it must not escalate for adjacency this world cannot supply.
+  useEffect(() => {
+    if (!channel) return undefined;
+    return channel.onFeature((record) => {
+      lastFeatureRef.current = record;
+      if (featureRef) featureRef.current = record;
+      setLastFeature(record.text);
+    });
+  }, [channel, featureRef]);
 
   // Only include center/zoom when explicitly syncing the display, so ordinary
   // scale changes don't churn the iframe.
@@ -63,26 +154,13 @@ export function AudiomMap({
   }, [stepMeters, bbox]);
 
   useEffect(() => {
-    if (!AUDIOM_ORIGIN || !src) return undefined;
+    if (!channel || !src) return undefined;
     readyRef.current = false;
     lastSentRef.current = null;
     discoveredRef.current = false;
     setStatus('Loading…');
 
-    const post = (m) => iframeRef.current?.contentWindow?.postMessage(m, AUDIOM_ORIGIN);
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    const getState = () => new Promise((resolve) => {
-      let done = false;
-      const h = (e) => {
-        if (e.origin !== AUDIOM_ORIGIN || e.data?.type !== 'stateChanged') return;
-        if (done) return; done = true;
-        window.removeEventListener('message', h);
-        resolve(e.data.payload?.position || null);
-      };
-      window.addEventListener('message', h);
-      post({ type: 'getState' });
-      setTimeout(() => { if (!done) { done = true; window.removeEventListener('message', h); resolve(null); } }, 1200);
-    });
 
     // Oracle: a movement command only moves the avatar while it is INSIDE the
     // map. Verified on a geographic map, a spatial diagram and a heatmap, so it
@@ -93,13 +171,13 @@ export function AudiomMap({
     // and read as "outside", so vertical edges are tested with a horizontal step
     // and vice versa.
     const isInside = async (lng, lat, probe) => {
-      post({ type: 'moveAvatar', payload: { position: [lng, lat] } });
+      channel.moveAvatar([lng, lat]);
       await sleep(200);
-      const before = await getState();
+      const before = await channel.getState();
       if (!before) return null;
-      post({ type: 'executeCommand', payload: { command: probe } });
+      channel.executeCommand(probe);
       await sleep(220);
-      const after = await getState();
+      const after = await channel.getState();
       if (!after) return null;
       return Math.hypot(after[0] - before[0], after[1] - before[1]) > 1e-9;
     };
@@ -132,7 +210,7 @@ export function AudiomMap({
       const east  = (setStatus('Bounds… E'), await findEdge(start, 'lng', +1, 'up'));
       const south = (setStatus('Bounds… S'), await findEdge(start, 'lat', -1, 'left'));
       const north = (setStatus('Bounds… N'), await findEdge(start, 'lat', +1, 'left'));
-      post({ type: 'moveAvatar', payload: { position: start } }); // restore
+      channel.moveAvatar(start); // restore
       setStatus('Ready');
       if ([west, east, south, north].every((v) => Number.isFinite(v))
           && east > west && north > south) {
@@ -140,19 +218,14 @@ export function AudiomMap({
       }
     }
 
-    function onMessage(event) {
-      if (event.origin !== AUDIOM_ORIGIN) return;
-      const { type, payload } = event.data || {};
+    function onMessage(type, payload) {
       switch (type) {
-        case 'ready': {
+        case INBOUND.READY: {
           readyRef.current = true;
           setStatus('Ready');
           // The avatar's start position is always inside the map, whatever the
           // map's coordinate system — the seed for both centring and discovery.
-          const h = (e) => {
-            if (e.origin !== AUDIOM_ORIGIN || e.data?.type !== 'stateChanged') return;
-            window.removeEventListener('message', h);
-            const p = e.data.payload?.position;
+          channel.getState({ timeoutMs: 3000 }).then((p) => {
             if (p && Number.isFinite(p[0]) && Number.isFinite(p[1])) {
               onStart?.(p);
               if (onBounds && !discoveredRef.current) {
@@ -160,19 +233,11 @@ export function AudiomMap({
                 discoverBounds(p);
               }
             }
-          };
-          window.addEventListener('message', h);
-          post({ type: 'getState' });
-          setTimeout(() => window.removeEventListener('message', h), 3000);
+          });
           break;
         }
-        case 'featureEntered':
-        case 'featureSelected': {
-          const names = (payload?.features || []).map((f) => f.name).filter(Boolean);
-          if (names.length) setLastFeature(names.join(', '));
-          break;
-        }
-        case 'error':
+        // featureEntered / featureSelected are handled by `channel.onFeature`.
+        case INBOUND.ERROR:
           setStatus(`Error: ${payload?.code || 'unknown'}`);
           break;
         default:
@@ -181,27 +246,24 @@ export function AudiomMap({
       onEvent?.(type, payload);
     }
 
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
-  }, [src, onEvent, onStart, onBounds]);
+    return channel.onMessage(onMessage);
+  }, [channel, src, onEvent, onStart, onBounds]);
 
   // Throttled avatar updates from the shared fingertip ref.
   useEffect(() => {
     const id = setInterval(() => {
-      const iframe = iframeRef.current;
       const coord = coordRef?.current;
-      if (!iframe || !readyRef.current || !coord ||
+      if (!channel || !readyRef.current || !coord ||
           !Number.isFinite(coord.lng) || !Number.isFinite(coord.lat)) return;
       const last = lastSentRef.current;
       if (last && metersBetween(last, coord) < deadbandMeters) return;
-      iframe.contentWindow?.postMessage(
-        { type: 'moveAvatar', payload: { position: [coord.lng, coord.lat] } },
-        AUDIOM_ORIGIN,
-      );
-      lastSentRef.current = coord;
+      // `moveAvatar` is false when the iframe has no contentWindow yet — the old
+      // `iframe.contentWindow?.postMessage` swallowed that but still advanced
+      // `lastSentRef`, which suppressed the next real send inside the deadband.
+      if (channel.moveAvatar(coord)) lastSentRef.current = coord;
     }, throttleMs);
     return () => clearInterval(id);
-  }, [throttleMs, coordRef, deadbandMeters]);
+  }, [channel, throttleMs, coordRef, deadbandMeters]);
 
   if (!AUDIOM_KEY) {
     return (
@@ -224,7 +286,20 @@ export function AudiomMap({
       style={fill ? undefined : { width: view?.width }}
     >
       <div className="audiom-panel-header">
-        Audiom · {status}{lastFeature ? ` · ${lastFeature}` : ''}
+        <span>Audiom · {status}{lastFeature ? ` · ${lastFeature}` : ''}</span>
+        {/* The system's first spoken output. Answered at L0 from the last
+            featureEntered payload — no model, no network, no inference. */}
+        <button
+          type="button"
+          onClick={whatsHere}
+          title="Speak the feature under the avatar"
+          style={{
+            marginLeft: 8, padding: '1px 6px', border: 0, borderRadius: 4,
+            background: '#334155', color: '#e2e8f0', fontSize: 11, cursor: 'pointer',
+          }}
+        >
+          What&rsquo;s here?
+        </button>
       </div>
       <iframe
         ref={iframeRef}

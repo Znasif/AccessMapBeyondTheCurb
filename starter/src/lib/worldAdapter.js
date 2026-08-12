@@ -313,6 +313,103 @@ export class WorldAdapter {
   }
 
   /**
+   * `(u, v)` → a point in this world's **metric plane**: a flat, isotropic,
+   * y-**down** plane in the adapter's natural unit.
+   *
+   * This is the one conversion the tool layer is allowed to ask for, and it
+   * exists because direction is not computable from `(u, v)`. Normalised
+   * coordinates are anisotropic — a 45° sweep across a 297×210 mm sheet is 32°
+   * in `(u, v)` — and in a geographic world they are Mercator-warped on top of
+   * that. Every bearing and every heading in the system is computed in this
+   * plane, so they are all in the same one by construction.
+   *
+   * y grows downward to match `lib/logic`'s convention (`graph.js` defines north
+   * as the versor `(0, -1)`) and `(u, v)`'s own (`v = 0` is top). An adapter
+   * whose native frame is y-up — east/north metres, latitude — flips here, once.
+   *
+   * ⚠️ This is a *perception→world* conversion and it happens exactly here. No
+   * `u` or `v` may appear in anything a tool returns.
+   *
+   * @param {number} _u @param {number} _v
+   * @returns {{x: number, y: number, units: string}|Unsupported}
+   */
+  metricPoint(_u, _v) {
+    throw new Error(
+      `${this.constructor.name}.metricPoint() must be implemented: every direction in the system is computed in this plane`,
+    );
+  }
+
+  /**
+   * Direction from one `(u, v)` to another, in this frame's vocabulary.
+   *
+   * There is **one** implementation of the rosette —
+   * `direction.js#bearingBetweenPoints(adapter, …)` — and every adapter's
+   * override is a one-line delegation to it. A second copy is how spoken
+   * directions silently rotate. It is not implemented on the base class only
+   * because `direction.js` imports {@link FRAMES} from here, and a cycle between
+   * the two would be a fragile way to save two lines per adapter.
+   *
+   * `compass` is present **only** in the geographic frame — the schema's `$note`
+   * made structural, so a handler physically cannot narrate "north" about a
+   * skeleton diagram.
+   *
+   * @param {number} _u0 @param {number} _v0 @param {number} _u1 @param {number} _v1
+   * @returns {{cardinal: string, direction: string, vocabulary: string, degrees: number,
+   *   frame: string, compass?: string}|null} null when the two points coincide.
+   */
+  bearingBetween(_u0, _v0, _u1, _v1) {
+    return this.#requireOverride('bearingBetween', CAPABILITIES.PLACES);
+  }
+
+  /**
+   * Distance from `(u, v)` to a named target, in this adapter's **natural**
+   * unit — never `minutes` and never `blocks`. Walking time needs a speed
+   * assumption and blocks need a street graph; both are `routing`/`graph`
+   * properties, not geometry, and converting is the tool's job (and only legal
+   * when the capability is declared). An adapter that guessed a walking speed
+   * would report a fabricated unit as though it had measured one.
+   *
+   * @param {number} _u @param {number} _v
+   * @param {string|Place|Region} _target
+   * @returns {{value: number, units: string, frame: string, method: string, place?: Place}
+   *   |Ambiguous|Unsupported|null}  null = the target has no geometry.
+   */
+  distanceTo(_u, _v, _target) {
+    return this.#requireOverride('distanceTo', CAPABILITIES.PLACES);
+  }
+
+  /**
+   * Direction from `(u, v)` to a named target. Same vocabulary rules as
+   * {@link bearingBetween}, measured to the nearest point of the target's
+   * geometry rather than to its centroid — an L-shaped region's centroid can sit
+   * outside the region entirely.
+   *
+   * @param {number} _u @param {number} _v
+   * @param {string|Place|Region} _target
+   * @returns {{cardinal: string, direction: string, vocabulary: string, degrees: number,
+   *   frame: string, compass?: string, method: string, place?: Place}
+   *   |Ambiguous|Unsupported|null}
+   */
+  bearingTo(_u, _v, _target) {
+    return this.#requireOverride('bearingTo', CAPABILITIES.PLACES);
+  }
+
+  /**
+   * How close counts as "on or immediately beside" for `am_i_at`.
+   *
+   * Frame-dependent and therefore adapter-owned: the tool layer has no basis for
+   * choosing 25 mm on a sheet or 400 m on a state map. The only one of these
+   * methods that never returns `Unsupported` — an adapter that can resolve
+   * places can always say what "beside" means in its own units, and returning
+   * `Unsupported` would make a tool that *was* offered unanswerable.
+   *
+   * @returns {{value: number, units: string, frame: string}}
+   */
+  touchTolerance() {
+    return { value: 0, units: this.frame === FRAMES.IMAGE ? 'material_mm' : 'metres', frame: this.frame };
+  }
+
+  /**
    * @param {Place|Node|{u:number,v:number}} _from
    * @param {Place|Node|{u:number,v:number}} _to
    * @param {RoutePrefs} [_prefs]

@@ -1,0 +1,349 @@
+/**
+ * Model profiles for the in-tab backend — milestone 3w.
+ *
+ * A profile is everything the wllama transport needs to turn a tier name
+ * (`l1`, `l3`) into a loaded `Wllama` instance: where the GGUF lives, how to
+ * open the context, and what it is expected to cost in memory.
+ *
+ * Two facts from plan §8 shape this file and neither is negotiable:
+ *
+ *   1. **One model per `Wllama` instance.** v3 runs `n_parallel: 1`, so serving
+ *      `l1` (EmbeddingGemma) and `l3` (Gemma 4) from the same page means TWO
+ *      instances, each with its own worker and its own WASM heap. The cost is
+ *      additive, which is why `planFootprint()` sums rather than maxes.
+ *   2. **Thinking must be off.** Design doc §8.0: with `tools` present,
+ *      thinking-on is fatal rather than slow. `LocalLLMClient` already sets
+ *      `chat_template_kwargs.enable_thinking: false` per request; the profile
+ *      sets `reasoning: false` AND `default_template_kwargs` at load time so a
+ *      tool-less narration turn is covered too. Belt, braces, and a third belt,
+ *      because the failure is silent.
+ *
+ * Weight sizes are file sizes, not guesses: the E2B figure is the byte count of
+ * the GGUF prepared for the W spike (`explore/wllama-spike/models/`). E4B is
+ * carried as a RANGE because two published quantisations differ by 300 MB and
+ * plan §7.2 quotes both; a range that is honest beats a point that is invented.
+ */
+
+import { TIER } from '../localLLM.js';
+
+const GB = 1024 ** 3;
+
+/**
+ * @typedef {object} ModelProfile
+ * @property {string}  id
+ * @property {string}  tier            TIER.EMBED | TIER.REASON
+ * @property {string}  label
+ * @property {string}  [url]           first shard; wllama auto-loads the rest
+ * @property {object}  [hf]            {repo, filePath} alternative to `url`
+ * @property {number}  [weightsBytes]  exact, when the file is known
+ * @property {[number, number]} [weightsBytesRange]  when it is not
+ * @property {object}  load            LoadModelParams for this profile
+ */
+
+/**
+ * `n_cache_reuse` is the only KV lever wllama v3 leaves us (§8: configuration,
+ * not control — v2's `kvClear`/`kvRemove` are gone). It is the minimum length
+ * of a chunk llama.cpp will shift and reuse when a prompt diverges in the
+ * MIDDLE; 256 is llama-server's own working default. It is a floor, not a
+ * budget — raising it does not buy more reuse.
+ *
+ * ⚠️ MEASURED 2026-08-11, and it corrects an assumption in plan §8. Loading
+ * Gemma 4 E2B through this profile makes llama.cpp print:
+ *
+ *     srv load_model: cache_reuse is not supported by this context,
+ *                     it will be disabled
+ *
+ * Gemma 4 is an interleaved sliding-window model, so the context comes up as
+ * `kv_unified = false` with a split iSWA cache (see `SWA_FULL_NOTE`), and the
+ * shifting `n_cache_reuse` needs is unavailable there. The flag is kept because
+ * it is free and correct for non-SWA models, but **it is not what serves this
+ * system's prefix reuse.**
+ *
+ * The fallback would be `cache_prompt: true` plus llama-server's slot prompt
+ * cache, which reuses the longest common prefix — precisely the append-only
+ * history rule `toolLoop.js` enforces (§6.1). ⚠️ THAT DOES NOT WORK EITHER in
+ * this configuration. Same run, second turn:
+ *
+ *     slot update_slots: id 0 | task 127 | forcing full prompt re-processing
+ *     due to lack of cache data (likely due to SWA or hybrid/recurrent memory)
+ *     — https://github.com/ggml-org/llama.cpp/pull/13194#issuecomment-2868343055
+ *     slot update_slots: id 0 | task 132 | erased invalidated context
+ *     checkpoint (pos_min = 674, pos_max = 1697, n_tokens = 1698,
+ *     n_swa = 512, pos_next = 0, size = 6.006 MiB)
+ *
+ * `n_swa = 512` is the whole story, and it makes this structural rather than
+ * incidental. The sliding-window layers retain 512 tokens. A 6.2–6.8k prompt is
+ * 12–13 windows long, so positions before the last 512 cannot be reconstructed,
+ * llama.cpp erases the checkpoint, and `pos_next = 0` — it restarts from token
+ * ZERO. Not "reuses less than hoped": reuses nothing.
+ *
+ * So on the DEFAULT configuration **every round of the tool loop re-prefills
+ * the whole 6.2–6.8k prompt**. With a 4-round budget that is up to 4× full
+ * prefill per user turn, against a runtime whose prefill already lags (§0.1).
+ * This is the single largest open risk in 3w and `SWA_FULL_NOTE` is the
+ * candidate fix.
+ */
+export const N_CACHE_REUSE = 256;
+
+/**
+ * The candidate fix for the reuse failure documented on `N_CACHE_REUSE`, and
+ * llama.cpp's own documented workaround for it.
+ *
+ * `swa_full: true` allocates the sliding-window layers at full context length
+ * instead of one window. On E2B at n_ctx 8192 the measured KV split is
+ * 48 MiB (3 non-SWA layers × 8192 cells) + 12 MiB (12 SWA layers × 1024
+ * cells) = 60 MiB; `swa_full` takes the second term to ~96 MiB, so roughly
+ * +84 MiB total. That is nothing next to 2.6 GB of weights, and if it buys
+ * full-prefix reuse on a 6.5k prompt it is the best trade in the file.
+ *
+ * DEFAULT OFF, deliberately, and this is a close call. The evidence that reuse
+ * is broken WITHOUT it is direct (llama.cpp said so, twice); the evidence that
+ * it is fixed WITH it is not — nobody has run that configuration here. Shipping
+ * an unverified default is the §8.0 class of mistake, so it stays off and the
+ * measurement is one command:
+ *
+ *     cd explore/wllama-spike && npm run measure -- --swa-full
+ *
+ * If `cached_tokens` comes back near the full prompt, turn this on and delete
+ * this paragraph. It is the highest-value open item in 3w.
+ */
+export const SWA_FULL_NOTE = 'measure with --swa-full before enabling; see N_CACHE_REUSE';
+
+/**
+ * 8192 matches the HTTP router's context. Plan-adjacent measurement recorded on
+ * the 8 GB M1 that this is a latency/eviction choice, not a memory wall: the
+ * curated prompt is 6.2–6.8k tokens and the reply is capped at 768, so 8192 is
+ * the smallest context that fits a full round without ctx-shift eating the
+ * prefix — which would destroy the reuse the slot prompt cache buys.
+ */
+export const DEFAULT_N_CTX = 8192;
+
+/** Shared chat-tier load params. Profiles override `n_ctx`/urls, not these. */
+const CHAT_LOAD = {
+  n_ctx: DEFAULT_N_CTX,
+  n_cache_reuse: N_CACHE_REUSE,
+  // The jinja path is what carries tool-call rendering and `enable_thinking`.
+  // Without it wllama falls back to a legacy formatter and the tools vanish.
+  jinja: true,
+  // §8.0, half one. Load-time reasoning switch.
+  reasoning: false,
+  // §8.0, half two. Merged UNDER any per-request kwargs by wllama itself
+  // (`createChatCompletion` spreads defaults first), so this covers the turns
+  // `LocalLLMClient` does not mark — narration rounds with no `tools` array.
+  default_template_kwargs: { enable_thinking: false },
+  n_gpu_layers: 99999,
+  // Keeps a warm slot rather than tearing the context down between turns. THIS
+  // is what carries prefix reuse for append-only history — see N_CACHE_REUSE.
+  cache_idle_slots: true,
+  // swa_full: true — see SWA_FULL_NOTE. Off until measured.
+};
+
+const EMBED_LOAD = {
+  // EmbeddingGemma's training length. Place documents are one line each, so the
+  // context is sized for the longest document, not for a conversation.
+  n_ctx: 2048,
+  embeddings: true,
+  // EmbeddingGemma is a mean-pooled sentence encoder. Getting this wrong does
+  // not error — it silently returns last-token vectors and ranking degrades.
+  pooling_type: 'mean',
+  n_gpu_layers: 99999,
+};
+
+/**
+ * The catalogue. `url` is left undefined on purpose: model hosting is a
+ * deployment decision (OPFS-cached same-origin shards for a self-hosted build,
+ * a HuggingFace `resolve/main` URL for a Pages build), so the app supplies it
+ * and this file supplies everything else.
+ */
+export const PROFILES = {
+  /**
+   * The in-tab chat default. 2.62 GB is the exact size of
+   * `gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf` as split for the W spike — the same
+   * QAT + UD-Q4_K_XL family as the E4B the native parity benchmark measured.
+   */
+  'gemma-4-e2b-q4': {
+    id: 'gemma-4-e2b-q4',
+    tier: TIER.REASON,
+    label: 'Gemma 4 E2B (QAT, UD-Q4_K_XL)',
+    hf: { repo: 'unsloth/gemma-4-E2B-it-qat-GGUF', filePath: 'UD-Q4_K_XL/*.gguf' },
+    weightsBytes: 2_620_370_976,
+    /**
+     * MEASURED 2026-08-11 from llama.cpp's own load log at `n_ctx: 8192`:
+     * 48 MiB non-SWA (8192 cells × 3 layers, f16 K+V) + 12 MiB SWA
+     * (1024 cells × 12 layers) = 60 MiB. Note how far this is below
+     * `kvUpperBoundBytes` — which is exactly the looseness that function's doc
+     * comment warns about, now with a number attached. Compute buffer was a
+     * further 118.52 MiB and the weights landed at 2699.90 MiB in-heap on the
+     * CPU path (the WebGPU path streams them to GPU buffers instead).
+     */
+    measuredKvBytes: { 8192: 60 * 1024 * 1024 },
+    load: { ...CHAT_LOAD },
+  },
+
+  /**
+   * The 16 GB configuration. ⚠️ The weight figure is a RANGE, not a
+   * measurement: plan §7.2 records Q4_0 at 4.84 GB and Google's QAT q4_0 at
+   * 5.15 GB. Nobody has loaded this in a tab here — `measured: false` says so,
+   * and `planFootprint()` reports the pessimistic end.
+   */
+  'gemma-4-e4b-q4': {
+    id: 'gemma-4-e4b-q4',
+    tier: TIER.REASON,
+    label: 'Gemma 4 E4B (QAT, q4)',
+    hf: { repo: 'unsloth/gemma-4-E4B-it-qat-GGUF', filePath: 'UD-Q4_K_XL/*.gguf' },
+    weightsBytesRange: [4.84 * GB, 5.15 * GB],
+    measured: false,
+    load: { ...CHAT_LOAD },
+  },
+
+  'embeddinggemma-q8': {
+    id: 'embeddinggemma-q8',
+    tier: TIER.EMBED,
+    label: 'EmbeddingGemma 300M (Q8_0)',
+    hf: { repo: 'ggml-org/embeddinggemma-300M-GGUF', filePath: 'embeddinggemma-300M-Q8_0.gguf' },
+    // 300M parameters at 8 bits plus the embedding matrix. Not weighed here.
+    weightsBytesRange: [0.3 * GB, 0.4 * GB],
+    measured: false,
+    load: { ...EMBED_LOAD },
+  },
+};
+
+/**
+ * Per-instance fixed overhead: the wllama WASM module, the worker's own heap,
+ * and llama.cpp's compute buffers. Charged once per `Wllama`, which is the
+ * whole point of §8's "two instances is additive". The 7.6 MB `wllama.wasm` is
+ * the floor; 192 MB is a working allowance for compute + scratch and is
+ * deliberately round — replace it with `measureUserAgentSpecificMemory()` output
+ * from `explore/wllama-spike/measure.mjs` when you have it.
+ */
+export const PER_INSTANCE_OVERHEAD_BYTES = 192 * 1024 * 1024;
+
+/** `[lo, hi]` weight bounds for a profile, whether it carries a point or a range. */
+export function weightBounds(profile) {
+  if (typeof profile.weightsBytes === 'number') {
+    return [profile.weightsBytes, profile.weightsBytes];
+  }
+  if (Array.isArray(profile.weightsBytesRange)) return [...profile.weightsBytesRange];
+  return [0, 0];
+}
+
+/**
+ * Upper bound on KV-cache bytes, from the context info llama.cpp reports after
+ * load (`wllama.getLoadedContextInfo()`).
+ *
+ * ⚠️ It is an UPPER bound and materially loose for this model family. The
+ * formula assumes every layer stores full-width K and V at `n_embd`, whereas
+ * Gemma uses grouped-query attention (fewer KV heads than query heads) and
+ * interleaves sliding-window layers that never hold the whole context. Both cut
+ * the real figure, often by more than half. Use it to prove headroom exists,
+ * never to claim a machine is out of memory — llama.cpp prints the true size in
+ * its load log, and `measure.mjs` captures it.
+ *
+ * @param {{n_layer: number, n_embd: number, n_ctx: number}} ctx
+ * @param {{cache_type_k?: string, cache_type_v?: string}} [load]
+ */
+export function kvUpperBoundBytes(ctx, load = {}) {
+  if (!ctx?.n_layer || !ctx?.n_embd || !ctx?.n_ctx) return null;
+  const width = (type) => (type === 'q8_0' ? 1.0625 : type === 'q4_0' ? 0.5625 : type === 'f32' ? 4 : 2);
+  const k = width(load.cache_type_k);
+  const v = width(load.cache_type_v);
+  return Math.round(ctx.n_layer * ctx.n_embd * ctx.n_ctx * (k + v));
+}
+
+/**
+ * The §7.2 budget arithmetic, as code rather than prose.
+ *
+ * @param {object} opts
+ * @param {string} [opts.chat]   profile id for `l3`
+ * @param {string} [opts.embed]  profile id for `l1`, or null for chat-only
+ * @param {Record<string, number>} [opts.kvBytes]  measured KV per profile id
+ * @returns {{instances: object[], totalBytes: [number, number], notes: string[]}}
+ */
+export function planFootprint({ chat = 'gemma-4-e2b-q4', embed = 'embeddinggemma-q8', kvBytes = {} } = {}) {
+  const ids = [chat, embed].filter(Boolean);
+  const instances = ids.map((id) => {
+    const profile = PROFILES[id];
+    if (!profile) throw new Error(`planFootprint: unknown profile "${id}"`);
+    const [lo, hi] = weightBounds(profile);
+    // A measured KV figure beats an unmeasured zero, and both beat the upper
+    // bound — which for E2B overstates the truth by more than 30×.
+    const kv = kvBytes[id] ?? profile.measuredKvBytes?.[profile.load?.n_ctx] ?? 0;
+    return {
+      id,
+      tier: profile.tier,
+      measured: profile.measured !== false,
+      weightsBytes: [lo, hi],
+      kvBytes: kv,
+      overheadBytes: PER_INSTANCE_OVERHEAD_BYTES,
+      totalBytes: [lo + kv + PER_INSTANCE_OVERHEAD_BYTES, hi + kv + PER_INSTANCE_OVERHEAD_BYTES],
+    };
+  });
+
+  const totalBytes = instances.reduce(
+    (acc, i) => [acc[0] + i.totalBytes[0], acc[1] + i.totalBytes[1]],
+    [0, 0],
+  );
+
+  const notes = [];
+  if (instances.length > 1) {
+    notes.push('two Wllama instances: worker + WASM heap each, additive (plan §8)');
+  }
+  if (instances.some((i) => !i.measured)) {
+    notes.push('contains unmeasured weight ranges — treat the upper bound as the budget');
+  }
+  const missingKv = instances.filter((i) => !i.kvBytes).map((i) => i.id);
+  if (missingKv.length) {
+    notes.push(`KV not counted for ${missingKv.join(', ')}: pass measured kvBytes from measure.mjs`);
+  }
+  return { instances, totalBytes, notes };
+}
+
+/**
+ * Which chat profile to run in a tab.
+ *
+ * The important part is the default, and it is E2B. Plan §7.2 concluded "E2B is
+ * the in-tab configuration on 8 GB machines; E4B in-tab is a 16 GB
+ * configuration" — but a browser CANNOT TELL THE TWO APART. `navigator.
+ * deviceMemory` is clamped to a maximum of 8 by the spec, for fingerprinting
+ * reasons, so a 64 GB workstation and an 8 GB laptop both report `8`. A rule of
+ * "pick E4B when deviceMemory >= 16" would therefore never fire, and a rule of
+ * ">= 8" fires on exactly the machines §7.2 says it must not.
+ *
+ * So the honest policy: **E2B unless a human says otherwise.** E4B in a tab is
+ * opt-in — either an explicit `profile` argument or `VITE_LLM_PROFILE`. E4B
+ * remains the default on the HTTP-router backend, where the process can read
+ * real system memory (§1.1).
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.profile]        explicit override, wins over everything
+ * @param {number} [opts.deviceMemory]   navigator.deviceMemory, if known
+ * @param {number} [opts.declaredMemoryGB]  real RAM, when a human supplied it
+ * @returns {{id: string, reason: string}}
+ */
+export function chooseChatProfile({ profile, deviceMemory, declaredMemoryGB } = {}) {
+  if (profile) {
+    if (!PROFILES[profile]) throw new Error(`chooseChatProfile: unknown profile "${profile}"`);
+    if (PROFILES[profile].tier !== TIER.REASON) {
+      throw new Error(`chooseChatProfile: "${profile}" is not a ${TIER.REASON} profile`);
+    }
+    return { id: profile, reason: 'explicit override' };
+  }
+  if (declaredMemoryGB >= 16) {
+    return { id: 'gemma-4-e4b-q4', reason: `declared ${declaredMemoryGB} GB of system memory` };
+  }
+  if (deviceMemory !== undefined && deviceMemory < 8) {
+    return { id: 'gemma-4-e2b-q4', reason: `navigator.deviceMemory reports ${deviceMemory} GB` };
+  }
+  // Includes deviceMemory === 8, which means "8 or more" and nothing sharper.
+  return {
+    id: 'gemma-4-e2b-q4',
+    reason: 'default: navigator.deviceMemory is clamped at 8 and cannot distinguish 8 GB from 32 GB',
+  };
+}
+
+/** Human-readable byte count for the budget tables and the harness output. */
+export function formatBytes(bytes) {
+  if (bytes == null) return '?';
+  if (bytes >= GB) return `${(bytes / GB).toFixed(2)} GB`;
+  return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+}

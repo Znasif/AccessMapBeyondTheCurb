@@ -54,6 +54,7 @@ import {
   isAmbiguous,
   unsupported,
 } from '../worldAdapter.js';
+import { bearingBetweenPoints, bearingFromDelta } from '../direction.js';
 
 /** Millimetres on the material — the only unit this frame may answer in (§5.4). */
 export const MATERIAL_UNITS = 'material_mm';
@@ -464,6 +465,35 @@ export class CamioWorldAdapter extends WorldAdapter {
     return { x: u * this.widthMm, y: v * this.heightMm };
   }
 
+  /**
+   * The isotropic metric plane every bearing and heading is computed in:
+   * millimetres from the top-left of the sheet, y **down**. For this world that
+   * is simply {@link uvToMm} — the material *is* the plane — but it must be this
+   * and not `(u, v)`, because the sheet is not square: a 45° sweep across a
+   * 297×210 mm A4 landscape is 35° in `(u, v)`, most of a sector away.
+   *
+   * @param {number} u @param {number} v
+   * @returns {{x: number, y: number, units: string}}
+   */
+  metricPoint(u, v) {
+    const { x, y } = this.uvToMm(u, v);
+    return { x, y, units: MATERIAL_UNITS };
+  }
+
+  /** @see WorldAdapter#bearingBetween — one implementation, in `direction.js`. */
+  bearingBetween(u0, v0, u1, v1) {
+    return bearingBetweenPoints(this, u0, v0, u1, v1);
+  }
+
+  /**
+   * The "immediately beside it" band for `am_i_at`. "On it" needs no tolerance
+   * at all in this world — a colour map answers containment exactly, with one
+   * `getPixel` — so the tool tests `at()` first and only then this radius.
+   */
+  touchTolerance() {
+    return { value: DEFAULT_NEARBY_RADIUS_MM, units: MATERIAL_UNITS, frame: this.frame };
+  }
+
   /* ------------------------------------------------------------------ tools */
 
   /**
@@ -595,6 +625,58 @@ export class CamioWorldAdapter extends WorldAdapter {
   }
 
   /**
+   * Direction from `(u, v)` to a named place or region.
+   *
+   * The same nearest-boundary walk `_distanceMm` already performs, returning the
+   * winning pixel instead of only the distance — so the direction points at the
+   * part of the region a finger would actually reach first, not at a centroid
+   * that an L-shaped hotspot may not even contain.
+   *
+   * `direction: null` when the finger is already inside the region: there is no
+   * honest direction to a place you are standing on, and inventing one would
+   * send a finger off the hotspot it just found.
+   *
+   * The vocabulary is `material` — `top`, `top right`, … — never compass. This
+   * is the image frame, and the schema's `$note` is explicit that saying "north"
+   * about a diagram is a bug; `bearingFromDelta` cannot produce a compass word
+   * outside the geographic frame, so the rule is structural rather than
+   * remembered.
+   *
+   * @param {number} u @param {number} v
+   * @param {string|{regionId?: string, id?: string}} target
+   * @returns {object|import('../worldAdapter.js').Ambiguous|null}
+   */
+  bearingTo(u, v, target) {
+    const resolved = this._targetRegion(target);
+    if (resolved === null) return null;
+    if (isAmbiguous(resolved)) return resolved;
+
+    const region = resolved;
+    if (region.pixels === 0) return null;
+
+    const { x, y } = this.uvToPixel(u, v);
+    const here = this._regionAtPixel(x, y);
+    const point = { x: (x + 0.5) * this.mmPerPxX, y: (y + 0.5) * this.mmPerPxY };
+    if (here === region) {
+      return {
+        cardinal: null, direction: null, vocabulary: null, degrees: null,
+        frame: this.frame, method: 'inside', place: { ...region.place }, region: publicRegion(region),
+      };
+    }
+
+    const nearest = this._nearestBoundaryMm(region, point);
+    if (!nearest) return null;
+    const bearing = bearingFromDelta(nearest.x - point.x, nearest.y - point.y, this.frame);
+    if (!bearing) return null;
+    return {
+      ...bearing,
+      method: 'nearest_boundary',
+      place: { ...region.place },
+      region: publicRegion(region),
+    };
+  }
+
+  /**
    * `route_to` is offered with its mode enum narrowed to `fly_me_there` (§3), and
    * that mode is executed by the dispatcher/navigator — it is finger guidance on
    * the material, not a path through a graph. There is no network in a colour map,
@@ -664,6 +746,29 @@ export class CamioWorldAdapter extends WorldAdapter {
       if (d < best) best = d;
     }
     return Math.sqrt(best);
+  }
+
+  /**
+   * The boundary pixel `_distanceMm` would have won with, in millimetres.
+   *
+   * A separate walk rather than a widened `_distanceMm` return: that one runs
+   * inside `nearby()`'s loop over every region and must not allocate per call,
+   * while this one runs once against a single resolved target.
+   *
+   * @returns {{x: number, y: number}|null}
+   */
+  _nearestBoundaryMm(region, point) {
+    const boundary = region.boundary;
+    if (!boundary || boundary.length === 0) return null;
+    let best = Infinity;
+    let winner = null;
+    for (let i = 0; i < boundary.length; i += 2) {
+      const bx = (boundary[i] + 0.5) * this.mmPerPxX;
+      const by = (boundary[i + 1] + 0.5) * this.mmPerPxY;
+      const d = (bx - point.x) ** 2 + (by - point.y) ** 2;
+      if (d < best) { best = d; winner = { x: bx, y: by }; }
+    }
+    return winner;
   }
 }
 

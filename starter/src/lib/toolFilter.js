@@ -64,12 +64,28 @@ const NARROWINGS = [
     // $note: "The `units` enum MUST be narrowed per frame before serving:
     // geographic -> [minutes, metres, feet, blocks]; enu -> [metres];
     // image -> [material_mm]."
-    enum: ({ frame }) =>
-      ({
-        geographic: ['minutes', 'metres', 'feet', 'blocks'],
-        enu: ['metres'],
-        image: ['material_mm'],
-      })[frame] || null,
+    //
+    // ⚠️ The $note narrows by FRAME ONLY, and that is not sufficient — a
+    // correction found in M7. `minutes` needs a walking-speed assumption and
+    // `blocks` needs a street network: they are `routing` / `graph` properties,
+    // not frame properties. An Audiom Tier A session declares `{places}` and is
+    // geographic, so the note as written offers it `minutes` and `blocks`, and a
+    // model that picks either gets a fabricated answer or an error.
+    //
+    // So the geographic row is split by capability. The other two rows are
+    // unchanged: an `enu` or `image` world has no walking claim to make at all.
+    // `getDistanceTo.js` re-checks the capability at dispatch time, which is the
+    // backstop for a model that emits an out-of-enum value anyway; this is what
+    // stops it being offered in the first place.
+    enum: ({ frame, capabilities }) => {
+      if (frame === 'enu') return ['metres'];
+      if (frame === 'image') return ['material_mm'];
+      if (frame !== 'geographic') return null;
+      const units = ['metres', 'feet'];
+      if (capabilities.has('routing')) units.unshift('minutes');
+      if (capabilities.has('graph')) units.push('blocks');
+      return units;
+    },
   },
 ];
 

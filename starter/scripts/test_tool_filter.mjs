@@ -122,6 +122,36 @@ check(
   JSON.stringify(fullUnits),
 );
 
+/* -- correction 11: `minutes` and `blocks` are CAPABILITY properties --------- */
+
+const unitsOf = (caps, frame) =>
+  byName(filterTools(schema, { capabilities: caps, frame }), 'get_distance_to')
+    .function.parameters.properties.units.enum;
+
+const tierAUnits = unitsOf(['places', 'liveFeatureStream'], 'geographic');
+check(
+  JSON.stringify(tierAUnits) === JSON.stringify(['metres', 'feet']),
+  'geographic without routing: no minutes (a walking time needs a walking network)',
+  JSON.stringify(tierAUnits),
+);
+check(
+  !tierAUnits.includes('blocks'),
+  'geographic without graph: no blocks (a block needs a street network)',
+  JSON.stringify(tierAUnits),
+);
+check(
+  JSON.stringify(unitsOf(['places', 'graph'], 'geographic')) === JSON.stringify(['metres', 'feet', 'blocks']),
+  'geographic + graph: blocks come back, minutes stay out',
+);
+check(
+  JSON.stringify(unitsOf(['places', 'routing'], 'geographic')) === JSON.stringify(['minutes', 'metres', 'feet']),
+  'geographic + routing: minutes come back, blocks stay out',
+);
+check(
+  JSON.stringify(unitsOf(['places', 'routing', 'graph'], 'enu')) === JSON.stringify(['metres']),
+  'enu is metres regardless of capability — a diagram makes no walking claim',
+);
+
 const enuUnits = byName(
   filterTools(schema, { capabilities: ['places', 'graph'], frame: 'enu' }),
   'get_distance_to',

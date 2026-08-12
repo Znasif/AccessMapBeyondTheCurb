@@ -24,10 +24,16 @@
 import {
   AudiomWorldAdapter,
   MemoryStore,
+  IndexedDBLayerStore,
+  defaultLayerStore,
+  LAYER_DB_NAME,
   AUDIOM_BACKEND_STAGING,
   cacheKey,
 } from '../src/lib/adapters/audiomWorldAdapter.js';
 import { isAmbiguous, isUnsupported, FRAMES, CAPABILITIES } from '../src/lib/worldAdapter.js';
+import { buildGraphDict, UNNAMED_STREET } from '../src/lib/geojsonGraph.js';
+import * as audiom from '../src/audiom.js';
+import { Graph } from '../src/lib/logic/graph.js';
 
 let failures = 0;
 function check(ok, label, detail = '') {
@@ -294,9 +300,15 @@ section('offline · at() and nearby()');
   );
 
   const near = adapter.nearby(inHarbour.u, inHarbour.v, 1e7);
-  check(near.length > 0 && near[0].distance === 0, 'nearby() returns distance in frame units, nearest first', `${near.length} hits`);
+  // M7 aligned this shape with `camioWorldAdapter.nearby()`: the unit rides in
+  // the result (§5.4) so a consumer needs no per-adapter branch.
   check(
-    near.every((p, i) => i === 0 || p.distance >= near[i - 1].distance),
+    near.length > 0 && near[0].distance.value === 0 && near[0].distance.units === 'metres',
+    'nearby() returns { value, units } in frame units, nearest first',
+    `${near.length} hits`,
+  );
+  check(
+    near.every((p, i) => i === 0 || p.distance.value >= near[i - 1].distance.value),
     'nearby() results are sorted by distance',
   );
   check(near.some((p) => p.name === 'Ferry Terminal'), 'a large radius reaches the far landmark');
@@ -403,7 +415,7 @@ section('offline · unsupported and seams');
   await adapter.loadMapDefinition(9001);
 
   const r = adapter.route({ u: 0, v: 0 }, { u: 1, v: 1 });
-  check(isUnsupported(r) && r.capability === CAPABILITIES.ROUTING, 'route() is Unsupported until M12b', r.reason);
+  check(isUnsupported(r) && r.capability === CAPABILITIES.ROUTING, 'route() is Unsupported until a graph is built (this fixture has no ways)', r.reason);
   const a = adapter.attributes({ id: 'x' });
   check(isUnsupported(a) && a.capability === CAPABILITIES.ACCESSIBILITY_ATTRS, 'attributes() is Unsupported', a.reason);
 
@@ -439,6 +451,479 @@ section('offline · derived window');
   adapter.setWindow([0, 0, 2, 2]);
   const c = adapter.toFrame(0.5, 0.5);
   check(Math.abs(c.lng - 1) < 1e-9, 'setWindow re-windows without refetching', JSON.stringify(c));
+}
+
+/* ------------------------------------------------------- debt: audiom.js -- */
+
+section('offline · audiom.js is importable from Node (§5.1 debt)');
+{
+  // The debt itself: this file used to throw `TypeError` on import outside Vite
+  // because `import.meta.env` was dereferenced at module scope. The import at
+  // the top of this script is the check — if it regressed, nothing below runs.
+  check(typeof audiom.uvToLngLat === 'function', 'audiom.js imports in Node and exports uvToLngLat');
+  check(typeof audiom.uvToEastNorth === 'function', 'and uvToEastNorth');
+  check(audiom.AUDIOM_KEY === '', 'a missing VITE_ key reads as "" rather than throwing', JSON.stringify(audiom.AUDIOM_KEY));
+  check(
+    audiom.AUDIOM_ORIGIN === 'https://audiom-staging.herokuapp.com',
+    'and AUDIOM_ORIGIN falls back to its documented default',
+    audiom.AUDIOM_ORIGIN,
+  );
+
+  // ── The copies that were deleted from audiomWorldAdapter.js, verbatim. ──
+  // The plan (§5.1) asserts the adapter's re-derivation "must stay numerically
+  // identical" to audiom.js. Held to the letter, that claim was FALSE: the copy
+  // wrote `lat * DEG` / `y / DEG` where audiom.js writes `(lat * PI) / 180` and
+  // `(y * 180) / PI`, which are different floating-point expressions.
+  const DEG = Math.PI / 180;
+  const MAX_MERC_LAT = 85.05112878;
+  const clampLat = (lat) => Math.min(MAX_MERC_LAT, Math.max(-MAX_MERC_LAT, lat));
+  const oldMercY = (lat) => {
+    const s = Math.sin(clampLat(lat) * DEG);
+    return 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI);
+  };
+  const oldInvMercY = (y) => Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) / DEG;
+  const oldUvToXYGeo = (u, v, bbox) => {
+    const [minX, minY, maxX, maxY] = bbox;
+    const x = minX + u * (maxX - minX);
+    const yTop = oldMercY(maxY);
+    const yBot = oldMercY(minY);
+    return [x, oldInvMercY(yTop + v * (yBot - yTop))];
+  };
+  const oldUvToXYEnu = (u, v, bbox) => {
+    const [minX, minY, maxX, maxY] = bbox;
+    return [minX + u * (maxX - minX), maxY - v * (maxY - minY)];
+  };
+
+  // A deterministic sweep — a fixed lattice, not a sampler, so this check means
+  // the same thing on every run.
+  const BOXES = [
+    [0, 0, 10, 10],
+    [-93.0, 42.4, -86.7, 47.1], // 885's window, near enough
+    [-0.51, 51.28, 0.33, 51.69], // London
+    [174.6, -41.4, 175.0, -41.1], // southern hemisphere
+    [-180, -85.05112878, 180, 85.05112878], // the whole Mercator domain
+  ];
+  let enuIdentical = true;
+  let lngIdentical = true;
+  let latIdentical = true;
+  let worstLat = 0;
+  let samples = 0;
+
+  for (const bbox of BOXES) {
+    for (let i = 0; i <= 40; i += 1) {
+      for (let j = 0; j <= 40; j += 1) {
+        const u = i / 40;
+        const v = j / 40;
+        samples += 1;
+
+        const { lng, lat } = audiom.uvToLngLat(u, v, bbox);
+        const [oldX, oldY] = oldUvToXYGeo(u, v, bbox);
+        if (lng !== oldX) lngIdentical = false;
+        if (lat !== oldY) latIdentical = false;
+        worstLat = Math.max(worstLat, Math.abs(lat - oldY));
+
+        const { e, n } = audiom.uvToEastNorth(u, v, { e0: bbox[0], n0: bbox[1], e1: bbox[2], n1: bbox[3] });
+        const [oldE, oldN] = oldUvToXYEnu(u, v, bbox);
+        if (e !== oldE || n !== oldN) enuIdentical = false;
+      }
+    }
+  }
+
+  check(enuIdentical, `uvToEastNorth is BIT-identical to the deleted ENU copy over ${samples} samples`);
+  check(lngIdentical, 'uvToLngLat\'s longitude is BIT-identical to the deleted copy');
+  check(
+    !latIdentical,
+    'its latitude is NOT — the deleted copy spelled the degree conversion differently (plan §5.1 overclaimed)',
+    `worst |Δlat| = ${worstLat.toExponential(3)}°`,
+  );
+  check(
+    worstLat * 111320 < 1e-6,
+    'and the disagreement is under a micrometre on the ground, so nothing observable changed',
+    `${(worstLat * 111320 * 1e9).toFixed(2)} nm`,
+  );
+
+  // The identity that DOES have to hold: the refactor changed no numbers. These
+  // are the pre-refactor expressions, which differed from the post-refactor ones
+  // only by the added domain clamp.
+  const preRefactorMercY = (lat) => {
+    const s = Math.sin((lat * Math.PI) / 180);
+    return 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI);
+  };
+  let clampIsIdentity = true;
+  for (let i = -8505; i <= 8505; i += 1) {
+    const lat = i / 100;
+    if (audiom.mercY(lat) !== preRefactorMercY(lat)) clampIsIdentity = false;
+  }
+  check(clampIsIdentity, 'the domain clamp added to mercY is the identity across the whole Mercator range');
+  check(Number.isFinite(audiom.mercY(90)) && !Number.isFinite(preRefactorMercY(90)), 'and turns the pole from Infinity into the cut latitude');
+}
+
+/* ----------------------------------------------------------- graph builder -- */
+
+/**
+ * A 3 x 3 street grid: three east-west streets crossing three north-south
+ * avenues, plus four POIs. Every crossing shares an exact vertex, which is what
+ * layerloader's 5-decimal truncation produces on real data.
+ */
+const line = (coords) => ({ type: 'LineString', coordinates: coords });
+
+/**
+ * @param {number} k Coordinate scale. `1` gives a ~1.1 km geographic window;
+ *   `111320` gives the same grid as a metre-scale `enu` diagram, which is what a
+ *   real spatial diagram looks like.
+ */
+const gridFixture = (k = 1) => {
+  const X = [0, 0.005 * k, 0.01 * k];
+  const Y = [0, 0.005 * k, 0.01 * k];
+  return {
+    id: 9002,
+    slug: 'fixture-grid',
+    title: 'Fixture Grid',
+    name: 'Fixture Grid',
+    warnings: [],
+    layers: [
+      layer('L1: Streets', 'standard', true, [
+        feature(1, 'L1: Streets', 'North Street', line(X.map((x) => [x, Y[2]]))),
+        feature(2, 'L1: Streets', 'Middle Street', line(X.map((x) => [x, Y[1]]))),
+        feature(3, 'L1: Streets', 'South Street', line(X.map((x) => [x, Y[0]]))),
+        feature(4, 'L1: Streets', 'West Avenue', line(Y.map((y) => [X[0], y]))),
+        feature(5, 'L1: Streets', 'Center Avenue', line(Y.map((y) => [X[1], y]))),
+        feature(6, 'L1: Streets', 'East Avenue', line(Y.map((y) => [X[2], y]))),
+      ]),
+      layer('L2: Places', 'standard', true, [
+        feature(1, 'L2: Places', 'Bakery', point(0.0025 * k, 0)),
+        feature(2, 'L2: Places', 'Library', point(0.0075 * k, 0.01 * k)),
+        feature(3, 'L2: Places', 'Clinic', point(0.01 * k, 0.0025 * k)),
+        feature(4, 'L2: Places', 'Ferry Terminal', point(0.2 * k, 0.2 * k)),
+      ]),
+    ],
+  };
+};
+
+const buildGrid = async (opts = {}) => {
+  const adapter = new AudiomWorldAdapter({
+    fetchImpl: fakeFetch(gridFixture()),
+    store: new MemoryStore(),
+    now: () => T_FRESH,
+    bbox: [0, 0, 0.01, 0.01],
+    ...opts,
+  });
+  await adapter.loadMapDefinition(9002);
+  return adapter;
+};
+
+section('offline · geojsonGraph');
+{
+  // Projection identical to the adapter's: metres east, metres SOUTH.
+  const M = 111320;
+  const project = (lng, lat) => [lng * M * Math.cos(0.005 * (Math.PI / 180)), (0.01 - lat) * M];
+  const places = gridFixture().layers.flatMap((l) =>
+    l.source.features.map((f) => ({ id: String(f.id), name: f.properties.name, geometry: f.geometry })));
+
+  const built = buildGraphDict(places, project, { snapTolerance: 1 });
+  check(built.ok, 'a street grid builds', built.reason);
+  check(
+    built.stats.nodes === 9,
+    'the 18 line vertices snap onto 9 distinct crossings, and all 9 are junctions',
+    `${built.stats.nodes} nodes / ${built.stats.vertices} distinct vertices`,
+  );
+  check(built.stats.edges === 12, 'twelve chords between them', `${built.stats.edges}`);
+  check(built.stats.streets === 6, 'six named streets', `${built.stats.streets}`);
+  check(built.stats.components === 1, 'one connected component');
+  check(built.stats.pois === 4, 'the four point features become POIs', `${built.stats.pois}`);
+
+  // The index alignment that everything else depends on: `loadEdges()` rebuilds
+  // the edge array by walking `Object.entries(streets)`, so a POI's stored edge
+  // index only means anything if the two orders agree.
+  const g = new Graph(built.graphDict, { feetsPerInch: 1, llmEnabled: false });
+  const rebuilt = g.edges.map((e) => [e.node1.index, e.node2.index]);
+  check(
+    JSON.stringify(rebuilt) === JSON.stringify(built.graphDict.edges),
+    'graphDict.edges is in the order loadEdges() rebuilds it, so POI edge indices survive',
+  );
+  check(
+    g.pois.every((poi) => poi.edge instanceof Object && typeof poi.street === 'string' && poi.street.length > 0),
+    'every POI lands on a named edge',
+  );
+  const bakery = g.pois.find((p) => p.name === 'Bakery');
+  check(bakery.street === 'South Street', 'the Bakery attaches to the street it sits on', bakery.street);
+
+  // Interior vertices are shape, not junctions — the reason is a prose bug.
+  const bent = buildGraphDict(
+    [{ id: 'a', name: 'Bent Lane', geometry: line([[0, 0], [0.002, 0.0005], [0.004, 0]]) }],
+    project,
+    { snapTolerance: 1 },
+  );
+  check(bent.stats.nodes === 2 && bent.stats.edges === 1, 'a lone bent way is two nodes and one chord', `${bent.stats.nodes}/${bent.stats.edges}`);
+
+  const unnamed = buildGraphDict(
+    [{ id: 'a', name: '', geometry: line([[0, 0], [0.004, 0]]) }],
+    project,
+    { snapTolerance: 1 },
+  );
+  check(
+    Object.keys(unnamed.graphDict.streets)[0] === UNNAMED_STREET,
+    'an unnamed way gets a speakable synthetic name rather than being dropped',
+  );
+  check(unnamed.notes.some((n) => /unnamed way/.test(n)), 'and says so');
+
+  const nothing = buildGraphDict(
+    [{ id: 'a', name: 'Blob', geometry: poly(0, 0, 1, 1) }],
+    project,
+    { snapTolerance: 1 },
+  );
+  check(!nothing.ok && /no linear features/.test(nothing.reason), 'polygons alone are not a network', nothing.reason);
+
+  const capped = buildGraphDict(places, project, { snapTolerance: 1, maxNodes: 4 });
+  check(!capped.ok && /junctions/.test(capped.reason), 'past maxNodes it refuses rather than running O(V^3)', capped.reason);
+}
+
+/* ---------------------------------------------------------------- routing -- */
+
+section('offline · buildLogicGraph + route (M12b)');
+{
+  const adapter = await buildGrid();
+  check(!adapter.session().capabilities.has(CAPABILITIES.ROUTING), 'loading alone does not declare routing');
+  const beforeGraph = adapter.route('Bakery', 'Library');
+  check(
+    isUnsupported(beforeGraph) && /buildLogicGraph/.test(beforeGraph.reason),
+    'and route() says exactly what is missing',
+    beforeGraph.reason,
+  );
+
+  const info = adapter.buildLogicGraph();
+  check(info.ok, 'buildLogicGraph succeeds on the grid', info.reason);
+  check(
+    adapter.session().capabilities.has(CAPABILITIES.GRAPH) && adapter.session().capabilities.has(CAPABILITIES.ROUTING),
+    'and only THEN are graph + routing declared',
+  );
+  check(adapter.logicGraph instanceof Graph, 'the ported Graph is what got attached');
+  check(
+    adapter.logicGraph.nodes.length === 9 && adapter.logicGraph.edges.length === 12,
+    'with the grid topology intact',
+    `${adapter.logicGraph.nodes.length} nodes / ${adapter.logicGraph.edges.length} edges`,
+  );
+
+  // The plane: metres, y DOWN, anchored at the window's north-west corner.
+  const nw = adapter.plane.toPlane(0, 0.01);
+  const se = adapter.plane.toPlane(0.01, 0);
+  check(Math.abs(nw[0]) < 1e-9 && Math.abs(nw[1]) < 1e-9, 'the plane origin is the window\'s north-west corner', JSON.stringify(nw));
+  check(se[1] > 0, 'y grows SOUTHWARD, which is what graph.js means by north = (0, -1)', `${se[1].toFixed(1)}`);
+  check(Math.abs(se[0] - 1113.2) < 2 && Math.abs(se[1] - 1113.2) < 2, 'and the units are metres', `${se[0].toFixed(1)} x ${se[1].toFixed(1)} m`);
+  check(
+    Math.abs(adapter.plane.unitsPerInch - se[0] / (270 / 25.4)) < 1e-9,
+    'unitsPerInch is metres-of-ground per inch of printed material (A4 artwork width)',
+    `${adapter.plane.unitsPerInch.toFixed(1)} m/in`,
+  );
+
+  const r = adapter.route('Bakery', 'Library');
+  check(!isUnsupported(r) && !isAmbiguous(r), 'a route comes back', isUnsupported(r) ? r.reason : '');
+  check(r.frame === FRAMES.GEOGRAPHIC, 'the route echoes the frame so L3 narrates the right units', r.frame);
+  check(r.segments.length === r.waypoints.length && r.segments.length > 0, 'segments and waypoints agree', `${r.segments.length}`);
+  check(
+    r.instructions.every((i) => /^(Head (north|south|east|west|north-east|north-west|south-east|south-west)|Continue straight)/.test(i)),
+    'every instruction opens with a cardinal heading or a turn-relative continuation — MapIO\'s convention, never a clock face',
+    JSON.stringify(r.instructions),
+  );
+  check(
+    r.waypoints.every((w) => ['north', 'south', 'east', 'west', 'north-east', 'north-west', 'south-east', 'south-west'].includes(w.direction)),
+    'and every direction is one of the eight CardinalDirections',
+    r.waypoints.map((w) => w.direction).join(' -> '),
+  );
+  check(
+    r.waypoints.every((w) => Number.isFinite(w.position.lng) && Number.isFinite(w.position.lat)),
+    'positions leave in WORLD-NATIVE lng/lat — uv is converted at the boundary and never propagates outward',
+  );
+  check(
+    r.waypoints.every((w) => w.position.u === undefined && w.position.v === undefined),
+    'and carry no (u, v) at all',
+  );
+  // Bakery sits exactly midway between two junctions, so `getNearestNode`'s
+  // first-wins tie-break sends the first leg WEST before turning north — a
+  // faithful consequence of the ported rule, and the reason this asserts a band
+  // around the walked distance rather than the 1,669 m Manhattan ideal.
+  check(
+    r.distance > 1669 && r.distance < 2500,
+    'the total distance is the WALKED one (grid, not crow-flies), in metres',
+    `${r.distance.toFixed(0)} m`,
+  );
+  check(
+    Math.abs(r.duration - r.distance / 1.2) < 1e-9,
+    'duration is that distance at a walking pace',
+    `${(r.duration / 60).toFixed(1)} min`,
+  );
+  check(r.from.label === 'Bakery' && r.to.label === 'Library', 'the endpoints name themselves for narration');
+  check(
+    Number.isFinite(r.from.position.lng) && Number.isFinite(r.from.position.lat),
+    'including the snapped start, in lng/lat',
+  );
+  check(
+    Math.abs(r.segments.reduce((s, seg) => s + seg.distance, 0) - r.distance) < 1e-9,
+    'the leg distances sum to the total',
+  );
+  check(
+    r.segments.some((s) => /^n\d+$/.test(s.toNode)),
+    'legs that end at a junction carry that junction\'s node id',
+    r.segments.map((s) => s.toNode).join(' -> '),
+  );
+
+  // Directions must be the graph's, not this layer's. North is +lat.
+  const northward = adapter.route({ lng: 0, lat: 0 }, { lng: 0, lat: 0.01 });
+  check(
+    northward.waypoints[0].direction === 'north',
+    'walking up-latitude is called "north" — the y-down plane did not mirror the compass',
+    northward.waypoints.map((w) => w.direction).join(', '),
+  );
+  const eastward = adapter.route({ lng: 0, lat: 0 }, { lng: 0.01, lat: 0 });
+  check(eastward.waypoints[0].direction === 'east', 'and walking up-longitude is "east"', eastward.waypoints[0].direction);
+
+  // Addressing: world-native first, uv accepted and converted once.
+  const byUV = adapter.route({ u: 0, v: 1 }, { u: 1, v: 1 });
+  check(!isUnsupported(byUV), 'a (u,v) endpoint is accepted at the boundary', isUnsupported(byUV) ? byUV.reason : '');
+  check(
+    Math.abs(byUV.from.position.lat - eastward.from.position.lat) < 1e-9 &&
+      Math.abs(byUV.from.position.lng - eastward.from.position.lng) < 1e-9,
+    'and lands where the equivalent lng/lat endpoint does',
+  );
+
+  // Preferences: the ported Floyd-Warshall has no preference model.
+  const withPrefs = adapter.route('Bakery', 'Library', { avoidBarriers: true, maxUphill: 5 });
+  check(
+    withPrefs.ignoredPrefs.includes('avoidBarriers') && withPrefs.ignoredPrefs.includes('maxUphill'),
+    'unhonoured RoutePrefs are echoed back rather than silently dropped',
+    JSON.stringify(withPrefs.ignoredPrefs),
+  );
+
+  const flyOver = adapter.route('Bakery', 'Library', { streetByStreet: false });
+  check(flyOver.waypoints.length === 1, 'streetByStreet: false is the single-hop fly-over leg', `${flyOver.waypoints.length}`);
+
+  // Failure modes, all narratable rather than thrown.
+  const amb = adapter.route('Harbour District', 'Library');
+  check(isUnsupported(amb) && /could not find/.test(amb.reason), 'an unknown start is a narratable refusal', amb.reason);
+  const noGeom = adapter.route('Bakery', 'Cathedral of St Nowhere');
+  check(isUnsupported(noGeom) && /finish/.test(noGeom.reason), 'and so is an unknown finish', noGeom.reason);
+
+  check(
+    isUnsupported(adapter.attributes({ id: 'leg:0' })),
+    'attributes() stays Unsupported: M12b built topology, not validated kerb data',
+    adapter.attributes({ id: 'leg:0' }).reason,
+  );
+
+  // A graph is a projection of one window over one set of places.
+  adapter.setWindow([0, 0, 0.005, 0.005]);
+  check(
+    !adapter.session().capabilities.has(CAPABILITIES.ROUTING) && adapter.logicGraph === null,
+    're-windowing drops the graph rather than routing the old one in the new plane',
+  );
+}
+
+section('offline · route ambiguity and disconnection');
+{
+  const adapter = await buildGrid();
+  adapter.buildLogicGraph();
+
+  // Two features share a name -> Ambiguous flows out of route() unchanged, so
+  // the dispatcher can ask rather than the adapter guessing.
+  const both = adapter.resolvePlace('Avenue');
+  check(isAmbiguous(both), 'the grid has an ambiguous name to test with', `${both.candidates?.length} candidates`);
+  const r = adapter.route('Avenue', 'Library');
+  check(isAmbiguous(r), 'route() returns Ambiguous rather than picking one', isAmbiguous(r) ? `${r.candidates.length}` : '');
+
+  // The far-off Ferry Terminal is a POI with no way near it; it still snaps.
+  const far = adapter.route('Bakery', 'Ferry Terminal');
+  check(!isUnsupported(far), 'an off-network destination still routes, by snapping to the network', isUnsupported(far) ? far.reason : '');
+
+  // A genuinely disconnected pair.
+  const split = new AudiomWorldAdapter({
+    fetchImpl: fakeFetch({
+      id: 9003,
+      title: 'Two Islands',
+      warnings: [],
+      layers: [layer('L1: Streets', 'standard', true, [
+        feature(1, 'L1: Streets', 'Island Road', line([[0, 0], [0.002, 0]])),
+        feature(2, 'L1: Streets', 'Mainland Road', line([[0.008, 0.01], [0.01, 0.01]])),
+      ])],
+    }),
+    store: new MemoryStore(),
+    now: () => T_FRESH,
+    bbox: [0, 0, 0.01, 0.01],
+  });
+  await split.loadMapDefinition(9003);
+  const splitInfo = split.buildLogicGraph();
+  check(splitInfo.ok && splitInfo.stats.components === 2, 'a two-piece network builds and reports both pieces', `${splitInfo.stats.components}`);
+  const across = split.route({ lng: 0, lat: 0 }, { lng: 0.01, lat: 0.01 });
+  check(
+    isUnsupported(across) && /no path/i.test(across.reason),
+    'and routing across the gap is a narratable "no path", not a throw',
+    across.reason,
+  );
+}
+
+section('offline · enu routing');
+{
+  // The same grid as a metre-scale spatial diagram: east/north units, both axes
+  // linear, no Mercator anywhere.
+  const K = 111320;
+  const spatial = gridFixture(K);
+  spatial.layers.forEach((l) => { l.coordinateSystem = 'spatial'; });
+  const adapter = new AudiomWorldAdapter({
+    fetchImpl: fakeFetch(spatial),
+    store: new MemoryStore(),
+    now: () => T_FRESH,
+    bbox: [0, 0, 0.01 * K, 0.01 * K],
+  });
+  const res = await adapter.loadMapDefinition(9002);
+  check(res.frame === FRAMES.ENU, 'the same grid read as a spatial diagram');
+  const info = adapter.buildLogicGraph();
+  check(info.ok && info.stats.nodes === 9, 'builds the same 9-node graph', info.reason || `${info.stats.nodes}`);
+  const r = adapter.route('Bakery', 'Library');
+  check(!isUnsupported(r), 'and routes', isUnsupported(r) ? r.reason : '');
+  check(r.duration === undefined, 'but reports NO duration — "12 minutes\' walk" is not a claim a diagram can make');
+  check(
+    r.waypoints.every((w) => Number.isFinite(w.position.e) && Number.isFinite(w.position.n)),
+    'and positions leave as east/north, this world\'s native coordinates',
+  );
+  check(
+    r.waypoints.every((w) => w.position.lng === undefined),
+    'never as lng/lat — saying "north-west of 43.1, -89.4" about a diagram is the bug frames exist to prevent',
+  );
+
+  // The tolerance that would have welded a small diagram into a single node.
+  const tiny = new AudiomWorldAdapter({
+    fetchImpl: fakeFetch((() => { const f = gridFixture(1); f.layers.forEach((l) => { l.coordinateSystem = 'spatial'; }); return f; })()),
+    store: new MemoryStore(),
+    now: () => T_FRESH,
+    bbox: [0, 0, 0.01, 0.01],
+  });
+  await tiny.loadMapDefinition(9002);
+  const tinyInfo = tiny.buildLogicGraph();
+  check(
+    tinyInfo.ok && tinyInfo.stats.nodes === 9,
+    'a diagram only 0.01 units wide still resolves 9 junctions — the snap tolerance scales with the window',
+    tinyInfo.reason || `${tinyInfo.stats.nodes}`,
+  );
+  check(
+    !tiny.buildLogicGraph({ snapTolerance: 1 }).ok,
+    'and a hard-coded 1-unit tolerance is exactly what would have welded it shut',
+  );
+}
+
+/* --------------------------------------------------------------- indexeddb -- */
+
+section('offline · IndexedDB layer store (§8: required, not an optimisation)');
+{
+  check(typeof IndexedDBLayerStore === 'function', 'the browser store exists');
+  check(LAYER_DB_NAME === 'abtc-audiom-layers', 'in its OWN database, not a corner of abtc-place-index (§5.1)', LAYER_DB_NAME);
+  check(
+    defaultLayerStore() instanceof MemoryStore,
+    'and degrades to memory where there is no indexedDB, which is what keeps this module Node-importable',
+  );
+  check(
+    ['get', 'put', 'delete', 'entries'].every((m) => typeof IndexedDBLayerStore.prototype[m] === 'function'),
+    'both stores satisfy the same get/put/delete/entries interface',
+  );
+  const bare = new AudiomWorldAdapter({ fetchImpl: fakeFetch() });
+  check(bare.store instanceof MemoryStore, 'the constructor picks it up by default');
 }
 
 /* ---------------------------------------------------------------------- live -- */
