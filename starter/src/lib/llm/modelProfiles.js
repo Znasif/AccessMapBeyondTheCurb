@@ -188,6 +188,7 @@ export const PROFILES = {
     id: 'gemma-4-e2b-q4',
     tier: TIER.REASON,
     label: 'Gemma 4 E2B (QAT, UD-Q4_K_XL)',
+    url: '/models/e2b-q4-00001-of-00005.gguf',
     hf: { repo: 'unsloth/gemma-4-E2B-it-qat-GGUF', filePath: 'UD-Q4_K_XL/*.gguf' },
     weightsBytes: 2_620_370_976,
     /**

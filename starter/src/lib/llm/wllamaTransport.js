@@ -107,7 +107,7 @@ function clampMaxTokens(body) {
  * test suite and the HTTP backend never pulls it into a bundle.
  */
 async function defaultCreateInstance({ wasmUrl, config } = {}) {
-  const { Wllama } = await import('@wllama/wllama');
+  const { Wllama } = await import('@wllama/wllama/esm/index.js');
   let resolved = wasmUrl;
   if (!resolved) {
     // Vite rewrites `?url` to the emitted asset path. Kept inside the factory
@@ -177,7 +177,16 @@ export class WllamaEngine {
         progressCallback: (p) => this.onProgress?.({ ...p, profile: this.profile.id }),
       };
       if (this.url) {
-        await instance.loadModelFromUrl(this.url, params);
+        try {
+          await instance.loadModelFromUrl(this.url, params);
+        } catch (err) {
+          if (this.hf) {
+            console.warn(`[WllamaEngine] Local URL (${this.url}) unavailable, falling back to Hugging Face...`, err);
+            await instance.loadModelFromHF(this.hf, params);
+          } else {
+            throw err;
+          }
+        }
       } else if (this.hf) {
         await instance.loadModelFromHF(this.hf, params);
       } else {

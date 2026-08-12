@@ -1,0 +1,3163 @@
+{
+    "name": "New York",
+    "template_image": "models/new_york/template.png",
+    "feets_per_pixel": 2.0978965222031607,
+    "feets_per_inch": 333.33,
+    "graph": {
+        "latlng_reference": {
+            "coords": [738.4595758155126, 3033.55837110577],
+            "lat": 40.74605893499274,
+            "lng": -73.99053528624474
+        },
+        "nodes": [
+            [612.5857844833229, 3260.1311955037118],
+            [797.2006784372011, 3360.8302285694635],
+            [566.4320609948534, 2932.8593380400184],
+            [738.4595758155126, 3033.55837110577],
+            [1250.3463272330837, 3310.4807120365876],
+            [579.0194401280723, 2634.95803188717],
+            [864.3333671477022, 2798.5939606190163],
+            [1288.1084646327406, 3029.362578061364],
+            [1787.407836917093, 3306.2849189921812],
+            [579.0194401280723, 2332.8609326899145],
+            [998.5987445687045, 2563.6295501322625],
+            [1330.066395076804, 2739.8528579973276],
+            [1917.4774212936888, 3075.5163015498338],
+            [2370.6230700895717, 3331.459677258619],
+            [574.8236470836661, 2022.3722474038468],
+            [1137.0599150341131, 2332.8609326899145],
+            [1376.2201185652734, 2462.9305170665107],
+            [2047.5470056702848, 2844.747684107486],
+            [2500.6926544661674, 3104.8868528606777],
+            [2953.8383032620504, 3356.634435525057],
+            [579.0194401280723, 1724.470941250998],
+            [1275.5210854995216, 2097.8965222031607],
+            [1418.1780490093365, 2181.8123830912873],
+            [2177.616590046881, 2605.5874805763256],
+            [2630.7622388427635, 2865.7266493295174],
+            [3088.1036806830525, 3125.865818082709],
+            [3486.7040199016533, 3339.851263347432],
+            [579.0194401280723, 1413.9822559649303],
+            [1401.3948768317114, 1875.5194908496258],
+            [2303.4903813790706, 2383.2104492227904],
+            [2756.6360301749532, 2639.1538249315763],
+            [3209.781678970836, 2890.9014075959553],
+            [3490.8998129460592, 3046.1457502389894],
+            [583.2152331724786, 1082.5146054568309],
+            [713.2848175490747, 1162.234673300551],
+            [1544.0518403415263, 1623.7719081852463],
+            [2437.7557588000727, 2139.8544526472238],
+            [2895.0972006403617, 2391.6020353116032],
+            [3352.4386424806507, 2651.741204064795],
+            [3495.0956059904656, 2731.4612719085153],
+            [579.0194401280723, 763.6343340819504],
+            [855.9417810588895, 918.8786767249844],
+            [1527.2686681639009, 1292.304257677147],
+            [1678.3172177625286, 1380.4159116096798],
+            [2580.4127223098876, 1892.302663027251],
+            [3037.7541641501766, 2144.05024569163],
+            [3490.8998129460592, 2395.7978283560096],
+            [990.2071584798919, 683.9142662382304],
+            [1565.0308055635578, 1015.3819167463298],
+            [1808.3868021391245, 1149.6472941673321],
+            [2710.4823066864838, 1661.5340455849032],
+            [3159.43216243796, 1913.2816282492824],
+            [3495.0956059904656, 2097.8965222031607],
+            [1510.4854959862757, 675.5226801494177],
+            [1611.1845290520273, 734.2637827711062],
+            [1925.8690073825014, 918.8786767249844],
+            [2836.356098018673, 1434.961221186962],
+            [3289.501746814556, 1686.7088038513411],
+            [3499.291399034872, 1799.995216050312],
+            [2055.9385917590976, 688.1100592826367],
+            [2966.425682395269, 1204.1926037446142],
+            [3419.571331191152, 1455.9401864089934],
+            [3503.4871920792784, 1502.0939098974632],
+            [2597.1958944875128, 688.1100592826367],
+            [3092.299473727459, 977.6197793466729],
+            [3507.682985123685, 1199.996810700208],
+            [3226.564851148461, 742.6553688599189],
+            [3507.682985123685, 897.8997115029528],
+            [3507.682985123685, 1296.5000507215534]
+        ],
+        "nodes_features": [
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "45 s",
+                "street_width": "10 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "30 s",
+                "street_width": "unknown",
+                "tactile_paving": true
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "15 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": false,
+                "crosswalk": false,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "10 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "45 s",
+                "street_width": "10 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": true,
+                "crosswalk": false,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "unknown",
+                "tactile_paving": true
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "20 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "unknown",
+                "tactile_paving": false
+            },
+            {
+                "on_border": true,
+                "crosswalk": false,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "12.5 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": true,
+                "crosswalk": false,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "unknown",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "unknown",
+                "street_width": "12.5 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "15 s",
+                "street_width": "10 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "10 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "45 s",
+                "street_width": "20 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "unknown",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "10 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "15 s",
+                "street_width": "unknown",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "12.5 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": false,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "20 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "12.5 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": true,
+                "crosswalk": false,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "15 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "45 s",
+                "street_width": "10 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "20 s",
+                "street_width": "10 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": false,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "20 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": false,
+                "crosswalk": false,
+                "walk_light": true,
+                "walk_light_duration": "unknown",
+                "round-about": false,
+                "street_width": "15 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "20 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "20 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "15 s",
+                "street_width": "20 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "30 s",
+                "street_width": "unknown",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "20 s",
+                "street_width": "12.5 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": false,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "15 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "15 s",
+                "street_width": "12.5 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "unknown",
+                "street_width": "12.5 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "12.5 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "30 s",
+                "street_width": "10 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": false,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "10 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "45 s",
+                "street_width": "10 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "unknown",
+                "street_width": "20 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "15 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "45 s",
+                "street_width": "unknown",
+                "tactile_paving": true
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "15 s",
+                "street_width": "15 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "unknown",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "unknown",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "15 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": false,
+                "crosswalk": false,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "12.5 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "30 s",
+                "street_width": "15 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "unknown",
+                "tactile_paving": false
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "30 s",
+                "street_width": "20 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "12.5 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": false,
+                "crosswalk": false,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "20 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "15 s",
+                "street_width": "12.5 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "20 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "30 s",
+                "street_width": "20 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "30 s",
+                "street_width": "unknown",
+                "tactile_paving": true
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "20 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "20 s",
+                "street_width": "12.5 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": false,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "10 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "30 s",
+                "street_width": "unknown",
+                "tactile_paving": false
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "20 s",
+                "street_width": "12.5 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "15 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "unknown",
+                "tactile_paving": false
+            },
+            {
+                "on_border": false,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "20 s",
+                "street_width": "unknown",
+                "tactile_paving": false
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "15 s",
+                "street_width": "20 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": true,
+                "crosswalk": false,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "12.5 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": false,
+                "crosswalk": false,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "unknown",
+                "tactile_paving": true
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "30 s",
+                "street_width": "12.5 m",
+                "tactile_paving": false
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": false,
+                "round-about": false,
+                "street_width": "10 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "unknown",
+                "street_width": "20 m",
+                "tactile_paving": true
+            },
+            {
+                "on_border": true,
+                "crosswalk": true,
+                "walk_light": true,
+                "round-about": false,
+                "walk_light_duration": "30 s",
+                "street_width": "10 m",
+                "tactile_paving": false
+            }
+        ],
+        "edges": [
+            [0, 1],
+            [2, 3],
+            [3, 4],
+            [5, 6],
+            [6, 7],
+            [7, 8],
+            [9, 10],
+            [10, 11],
+            [11, 12],
+            [14, 15],
+            [15, 16],
+            [16, 17],
+            [20, 21],
+            [21, 22],
+            [22, 23],
+            [27, 28],
+            [28, 29],
+            [33, 34],
+            [34, 35],
+            [35, 36],
+            [40, 41],
+            [41, 42],
+            [42, 43],
+            [43, 44],
+            [47, 48],
+            [48, 49],
+            [49, 50],
+            [53, 54],
+            [54, 55],
+            [55, 56],
+            [59, 60],
+            [63, 64],
+            [12, 13],
+            [17, 18],
+            [18, 19],
+            [23, 24],
+            [24, 25],
+            [25, 26],
+            [29, 30],
+            [30, 31],
+            [31, 32],
+            [36, 37],
+            [37, 38],
+            [38, 39],
+            [44, 45],
+            [45, 46],
+            [50, 51],
+            [51, 52],
+            [56, 57],
+            [57, 58],
+            [60, 61],
+            [61, 62],
+            [64, 65],
+            [66, 67],
+            [8, 12],
+            [12, 17],
+            [17, 23],
+            [23, 29],
+            [29, 36],
+            [36, 44],
+            [44, 50],
+            [50, 56],
+            [56, 60],
+            [60, 64],
+            [64, 66],
+            [0, 3],
+            [3, 6],
+            [6, 10],
+            [10, 15],
+            [15, 21],
+            [21, 28],
+            [28, 35],
+            [35, 43],
+            [43, 49],
+            [49, 55],
+            [55, 59],
+            [27, 34],
+            [34, 41],
+            [41, 47],
+            [13, 18],
+            [18, 24],
+            [24, 30],
+            [30, 37],
+            [37, 45],
+            [45, 51],
+            [51, 57],
+            [57, 61],
+            [61, 68],
+            [19, 25],
+            [25, 31],
+            [31, 38],
+            [38, 46],
+            [4, 7],
+            [7, 11],
+            [11, 16],
+            [16, 22],
+            [42, 48],
+            [48, 54]
+        ],
+        "edges_features": [
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "uphill",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "downhill",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "uphill",
+                "surface": "cobblestone",
+                "traffic_direction": "two_way",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "cobblestone",
+                "traffic_direction": "one_way_backward",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "cobblestone",
+                "traffic_direction": "two_way",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "uphill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_backward",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "downhill",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "cobblestone",
+                "traffic_direction": "one_way_backward",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "uphill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "uphill",
+                "surface": "cobblestone",
+                "traffic_direction": "two_way",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "uphill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "cobblestone",
+                "traffic_direction": "two_way",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_backward",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "downhill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_backward",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "downhill",
+                "surface": "cobblestone",
+                "traffic_direction": "one_way_forward",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "downhill",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "downhill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "downhill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "downhill",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_backward",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "uphill",
+                "surface": "cobblestone",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "uphill",
+                "surface": "cobblestone",
+                "traffic_direction": "two_way",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "downhill",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "downhill",
+                "surface": "cobblestone",
+                "traffic_direction": "one_way_backward",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "uphill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "uphill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_backward",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_backward",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "downhill",
+                "surface": "cobblestone",
+                "traffic_direction": "one_way_forward",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "cobblestone",
+                "traffic_direction": "one_way_backward",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "cobblestone",
+                "traffic_direction": "one_way_backward",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "downhill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_backward",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "uphill",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "downhill",
+                "surface": "cobblestone",
+                "traffic_direction": "one_way_forward",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "downhill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "uphill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_backward",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "uphill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "downhill",
+                "surface": "cobblestone",
+                "traffic_direction": "two_way",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "downhill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_backward",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "downhill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "downhill",
+                "surface": "cobblestone",
+                "traffic_direction": "one_way_forward",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "uphill",
+                "surface": "cobblestone",
+                "traffic_direction": "one_way_forward",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "uphill",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "downhill",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "uphill",
+                "surface": "cobblestone",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "downhill",
+                "surface": "cobblestone",
+                "traffic_direction": "one_way_backward",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "uphill",
+                "surface": "cobblestone",
+                "traffic_direction": "two_way",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "uphill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_backward",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "downhill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "uphill",
+                "surface": "cobblestone",
+                "traffic_direction": "one_way_forward",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_backward",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "downhill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_backward",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "downhill",
+                "surface": "cobblestone",
+                "traffic_direction": "one_way_backward",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "downhill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_backward",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "uphill",
+                "surface": "cobblestone",
+                "traffic_direction": "two_way",
+                "stairs": false
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "uphill",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "uphill",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "uphill",
+                "surface": "cobblestone",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "downhill",
+                "surface": "cobblestone",
+                "traffic_direction": "one_way_forward",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_backward",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "downhill",
+                "surface": "cobblestone",
+                "traffic_direction": "one_way_forward",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "uphill",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "uphill",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "cobblestone",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "uphill",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "cobblestone",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "uphill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_backward",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "uphill",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "downhill",
+                "surface": "cobblestone",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": false,
+                "slope": "downhill",
+                "surface": "cobblestone",
+                "traffic_direction": "one_way_backward",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "downhill",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": true
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_backward",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": true,
+                "slope": "downhill",
+                "surface": "concrete",
+                "traffic_direction": "two_way",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_backward",
+                "stairs": true
+            },
+            {
+                "roadwork": true,
+                "bike_lane": true,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_forward",
+                "stairs": false
+            },
+            {
+                "roadwork": false,
+                "bike_lane": false,
+                "slope": "flat",
+                "surface": "concrete",
+                "traffic_direction": "one_way_backward",
+                "stairs": true
+            }
+        ],
+        "streets": {
+            "West 27th Street": [0],
+            "West 28th Street": [1, 2],
+            "West 29th Street": [3, 4, 5],
+            "West 30th Street": [6, 7, 8],
+            "West 31st Street": [9, 10, 11],
+            "West 32nd Street": [12, 13, 14],
+            "West 33rd Street": [15, 16],
+            "West 34th Street": [17, 18, 19],
+            "West 35th Street": [20, 21, 22, 23],
+            "West 36th Street": [24, 25, 26],
+            "West 37th Street": [27, 28, 29],
+            "West 38th Street": [30],
+            "West 39th Street": [31],
+            "East 30th Street": [32],
+            "East 31st Street": [33, 34],
+            "East 32nd Street": [35, 36, 37],
+            "East 33rd Street": [38, 39, 40],
+            "East 34th Street": [41, 42, 43],
+            "East 35th Street": [44, 45],
+            "East 36th Street": [46, 47],
+            "East 37th Street": [48, 49],
+            "East 38th Street": [50, 51],
+            "East 39th Street": [52],
+            "East 40th Street": [53],
+            "5th Avenue": [54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64],
+            "6th Avenue": [65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75],
+            "7th Avenue": [76, 77, 78],
+            "Madison Avenue": [79, 80, 81, 82, 83, 84, 85, 86, 87],
+            "Park Avenue South": [88],
+            "Park Avenue": [89, 90, 91],
+            "Broadway": [92, 93, 94, 95, 96, 97]
+        },
+        "reference_system": {
+            "north": [0, 1],
+            "south": [0, -1],
+            "east": [1, 0],
+            "west": [-1, 0]
+        },
+        "points_of_interest": [
+            {
+                "name": "American Academy of Dramatic Arts",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "Madison Avenue",
+                "housenumber": "120",
+                "categories": ["education.college"],
+                "name_other": {
+                    "short_name": "AADA"
+                },
+                "contact": {
+                    "phone": "+1-800-463-8990",
+                    "website": "https://www.aada.edu/campuses/new-york-campus-overview"
+                },
+                "edge": 79,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on Madison Avenue, between the intersection with East 30th Street and the intersection with East 31st Street",
+                "coords": [2332.110376280122, 3231.9959522136196]
+            },
+            {
+                "name": "Andrews NYC Diner",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "housenumber": "463",
+                "street": "5th Avenue",
+                "categories": ["catering.restaurant.american"],
+                "opening_hours": "Mo-Th 6:00 AM - 10:00 PM; Fr 6:00 AM - 11:00 PM; Su 7:00 AM - 11:00 PM",
+                "contact": {
+                    "phone": "+1-212-695-1962",
+                    "website": "https://andrewsny.com/"
+                },
+                "facilities": {
+                    "takeaway": true
+                },
+                "catering": {
+                    "cuisine": "american;diner",
+                    "reservation": "required"
+                },
+                "edge": 56,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on 5th Avenue, between the intersection with West 31st Street and East 31st Street and the intersection with East 32nd Street and West 32nd Street",
+                "coords": [2037.3468073126537, 2685.661220333175]
+            },
+            {
+                "name": "BCD Tofu House",
+                "city": "New York",
+                "commercial": "Korea Town",
+                "street": "West 32nd Street",
+                "housenumber": "5",
+                "categories": ["catering.restaurant.korean"],
+                "opening_hours": "",
+                "branch": "Manhattan, NY",
+                "contact": {
+                    "phone": "+1 212-967-1900",
+                    "website": "https://www.bcdtofuhouse.com"
+                },
+                "facilities": {
+                    "takeaway": true,
+                    "delivery": true
+                },
+                "catering": {
+                    "cuisine": "korean"
+                },
+                "edge": 14,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on West 32nd Street, between the intersection with Broadway and the intersection with 5th Avenue and East 32nd Street",
+                "coords": [1976.5845058423597, 2503.9270385118134]
+            },
+            {
+                "name": "Bank of America",
+                "city": "New York",
+                "district": "Flower District",
+                "housenumber": "812",
+                "street": "7th Avenue",
+                "categories": ["service.financial.bank"],
+                "opening_hours": "Mo-Fr 9:00 AM - 5:00 PM; Sa 9:00 AM - 2:00 PM",
+                "brand": "Bank of America",
+                "contact": {
+                    "phone": "+1-212-684-1541",
+                    "website": "https://locators.bankofamerica.com/ny/newyork/financial-centers-new-york-15710.html"
+                },
+                "edge": 77,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on 7th Avenue, between the intersection with West 34th Street and the intersection with West 35th Street",
+                "coords": [924.3673835013753, 982.7797971992295]
+            },
+            {
+                "name": "Bank of Hope",
+                "city": "New York",
+                "commercial": "Korea Town",
+                "street": "West 32nd Street",
+                "housenumber": "16",
+                "categories": ["service.financial.bank"],
+                "opening_hours": "Mo-Fr 8:30 AM - 5:00 PM",
+                "operator": "Hope Bancorp Inc.",
+                "branch": "Manhattan",
+                "contact": {
+                    "phone": "+1 212-279-2790",
+                    "website": "https://www.bankofhope.com"
+                },
+                "edge": 14,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on West 32nd Street, between the intersection with Broadway and the intersection with 5th Avenue and East 32nd Street",
+                "coords": [1810.8993231504587, 2506.5201106422155]
+            },
+            {
+                "name": "Barn Joo 35",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "West 35th Street",
+                "housenumber": "34",
+                "categories": ["catering.restaurant.korean"],
+                "opening_hours": "Mo-We 12:00 PM - 9:00 PM; Th-Sa 12:00 PM - 10:00 PM; Su 12:00 PM - 9:00 PM",
+                "contact": {
+                    "phone": "+1-212-564-4430",
+                    "website": "https://www.barnjoo.com"
+                },
+                "facilities": {
+                    "outdoor_seating": true
+                },
+                "catering": {
+                    "cuisine": "korean"
+                },
+                "edge": 23,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on West 35th Street, between the intersection with 6th Avenue and the intersection with 5th Avenue and East 35th Street",
+                "coords": [2057.4625601173066, 1703.8729816540624]
+            },
+            {
+                "name": "Blaggards Pub",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "West 38th Street",
+                "housenumber": "8",
+                "categories": ["catering.pub"],
+                "opening_hours": "Mo-Sa 11:00 AM - 4:00 AM; Su 12:00 PM - 4:00 AM",
+                "contact": {
+                    "phone": "+1 212-382-2611",
+                    "email": "blaggards@verizon.net",
+                    "website": "https://blaggardsnyc.com"
+                },
+                "facilities": {
+                    "takeaway": true,
+                    "delivery": true
+                },
+                "edge": 30,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": true,
+                    "elevator": false
+                },
+                "location_description": "on West 38th Street, between the intersection with 6th Avenue and the intersection with 5th Avenue and East 38th Street",
+                "coords": [2661.459681718616, 1146.277713045436]
+            },
+            {
+                "name": "Blank Slate Coffee + Kitchen",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "Madison Avenue",
+                "housenumber": "121",
+                "categories": ["catering.cafe", "vegetarian"],
+                "opening_hours": "Fr-Su 7:30 AM - 7:00 PM; Mo-Th 7:30 AM - 9:00 PM",
+                "branch": "Nomad",
+                "craft": "caterer",
+                "contact": {
+                    "phone": "+1-212-683-7800",
+                    "website": "https://www.blankslatenyc.com/location/nomad/"
+                },
+                "facilities": {
+                    "toilets": true,
+                    "takeaway": true,
+                    "delivery": true
+                },
+                "payment_options": {
+                    "cash": true,
+                    "debit_cards": true,
+                    "credit_cards": true
+                },
+                "catering": {
+                    "cuisine": "coffee_shop;breakfast;sandwich;salad",
+                    "diet": {
+                        "vegetarian": true
+                    }
+                },
+                "production": {
+                    "industry": "caterer"
+                },
+                "edge": 79,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on Madison Avenue, between the intersection with East 30th Street and the intersection with East 31st Street",
+                "coords": [2321.3526236411435, 3216.430978657073]
+            },
+            {
+                "name": "Cafe China",
+                "city": "New York",
+                "district": "Midtown South",
+                "street": "6th Avenue",
+                "housenumber": "59",
+                "categories": ["catering.restaurant.chinese"],
+                "opening_hours": "Su-We 11:30 AM - 10:30 PM; Th-Sa 11:30 AM - 11:00 PM",
+                "contact": {
+                    "phone": "+12122132810",
+                    "website": "http://www.cafechinanyc.com/"
+                },
+                "facilities": {
+                    "smoking": true,
+                    "takeaway": true
+                },
+                "catering": {
+                    "cuisine": "chinese"
+                },
+                "edge": 65,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": true,
+                    "elevator": false
+                },
+                "location_description": "on 6th Avenuenear the border of the map",
+                "coords": [693.7610276607124, 3248.2763139757517]
+            },
+            {
+                "name": "Cafe R",
+                "city": "New York",
+                "district": "Chelsea District",
+                "street": "West 31st Street",
+                "categories": ["catering.food_court"],
+                "opening_hours": "Open 24 hours, 7 days a week",
+                "contact": {
+                    "phone": "+1-212-695-9550",
+                    "website": "http://www.cafernyc.com"
+                },
+                "facilities": {
+                    "takeaway": true,
+                    "delivery": true
+                },
+                "catering": {
+                    "cuisine": "international"
+                },
+                "edge": 9,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on West 31st Street, between the limit of the map and the intersection with 6th Avenue",
+                "coords": [926.9471032895784, 2110.948783615962]
+            },
+            {
+                "name": "Chase",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "5th Avenue",
+                "housenumber": "349",
+                "categories": ["service.financial.bank"],
+                "opening_hours": "9:00 AM - 5:00 PM",
+                "brand": "Chase",
+                "contact": {
+                    "phone": "+1-212-696-3252",
+                    "website": "https://locator.chase.com/ny/new-york/349-fifth-ave"
+                },
+                "facilities": {
+                    "air_conditioning": true
+                },
+                "edge": 58,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on 5th Avenue, between the intersection with West 33rd Street and East 33rd Street and the intersection with West 34th Street and East 34th Street",
+                "coords": [2395.3906055247585, 2271.6827334103527]
+            },
+            {
+                "name": "Chick-fil-A",
+                "city": "New York",
+                "district": "Midtown South",
+                "street": "6th Avenue",
+                "housenumber": "1000",
+                "categories": ["catering.fast_food"],
+                "opening_hours": "Mo-Sa 6:30 AM - 10:00 PM",
+                "brand": "Chick-fil-A",
+                "branch": "37th & 6th",
+                "contact": {
+                    "phone": "+1 212-704-9920",
+                    "website": "https://www.chick-fil-a.com/Locations/NY/37th--6th-InLine"
+                },
+                "facilities": {
+                    "internet_access": true,
+                    "takeaway": true
+                },
+                "catering": {
+                    "cuisine": "chicken"
+                },
+                "edge": 74,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on 6th Avenuenear the intersection with West 37th Street",
+                "coords": [1941.8180270776468, 999.9107802355762]
+            },
+            {
+                "name": "Citizens Bank",
+                "city": "New York",
+                "district": "Flower District",
+                "housenumber": "800",
+                "street": "West 37th Street",
+                "categories": ["service.financial.bank"],
+                "opening_hours": "Mo-Fr 9:00 AM - 5:00 PM",
+                "brand": "Citizens Bank",
+                "name_other": {
+                    "short_name": "Citizens"
+                },
+                "contact": {
+                    "phone": "+1-212-453-9800",
+                    "website": "https://locations.citizensbank.com/ny/new-york/800-6th-avenue.html"
+                },
+                "edge": 29,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on West 37th Street, between the intersection with 6th Avenue and the intersection with 5th Avenue and East 37th Street",
+                "coords": [2044.7622430096728, 1017.3662662898946]
+            },
+            {
+                "name": "Consulate General of Poland",
+                "city": "New York",
+                "district": "Manhattan Community Board 6",
+                "street": "Madison Avenue",
+                "housenumber": "233",
+                "categories": ["office.diplomatic", "building.office"],
+                "opening_hours": "Mo,Tu,Th,Fr 8:30 AM - 2:30 PM; We 11:30 AM - 5:30 PM",
+                "contact": {
+                    "phone": "+1 646 2372100",
+                    "email": "nowyjork.kg.sekretariat@msz.gov.pl",
+                    "website": "https://newyork.mfa.gov.pl/"
+                },
+                "edge": 85,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": true,
+                    "reception": false,
+                    "stairs": true,
+                    "elevator": true
+                },
+                "location_description": "on Madison Avenuenear the intersection with East 37th Street",
+                "coords": [3253.919198446969, 1784.5377806980875]
+            },
+            {
+                "name": "Cooper Electric",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "West 38th Street",
+                "housenumber": "29",
+                "categories": ["commercial.trade"],
+                "opening_hours": "Mo-Fr 7:00 AM - 3:00 PM",
+                "brand": "Cooper Electric",
+                "branch": "Manhattan",
+                "contact": {
+                    "phone": "+1 212-299-0570",
+                    "email": "CMATSalesTeam@cooper-electric.com",
+                    "fax": "+1 212-354-1786",
+                    "website": "https://www.cooper-electric.com/about/location/manhattan"
+                },
+                "commercial": {
+                    "type": "trade",
+                    "trade": "building_supplies",
+                    "level": 0
+                },
+                "distance": 384,
+                "edge": 30,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on West 38th Street, between the intersection with 6th Avenue and the intersection with 5th Avenue and East 38th Street",
+                "coords": [2455.931550690919, 955.9725444974483]
+            },
+            {
+                "name": "Costas",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "West 35th Street",
+                "housenumber": "30",
+                "categories": ["catering.fast_food"],
+                "opening_hours": "Mo-Fr 11:00 AM - 8:00 PM",
+                "contact": {
+                    "phone": "+1-646-564-3545",
+                    "website": "https://www.costasnyc.com/location/costas-nyc/"
+                },
+                "facilities": {
+                    "takeaway": true
+                },
+                "catering": {
+                    "cuisine": "latin_american"
+                },
+                "edge": 23,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": true,
+                    "elevator": false
+                },
+                "location_description": "on West 35th Street, between the intersection with 6th Avenue and the intersection with 5th Avenue and East 35th Street",
+                "coords": [2078.8234420550216, 1716.7652980084072]
+            },
+            {
+                "name": "Dig",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "Broadway",
+                "housenumber": "1178",
+                "categories": ["catering.fast_food"],
+                "opening_hours": "Mo-Fr 11:00 AM - 9:00 PM",
+                "brand": "Dig",
+                "name_other": {
+                    "alt_name": "Dig Inn"
+                },
+                "contact": {
+                    "phone": "+1-212-335-2010",
+                    "website": "https://www.diginn.com/"
+                },
+                "facilities": {
+                    "takeaway": true
+                },
+                "catering": {
+                    "cuisine": "regional"
+                },
+                "edge": 92,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on Broadwaynear the border of the map",
+                "coords": [1292.483369672002, 3224.5113934978403]
+            },
+            {
+                "name": "Empire State Building",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "5th Avenue",
+                "housenumber": "350",
+                "categories": [
+                    "building.office",
+                    "building.historic",
+                    "heritage",
+                    "tourism.attraction",
+                    "office",
+                    "building.tourism"
+                ],
+                "opening_hours": "Mo-Su 8:00 AM - 2:00 AM",
+                "contact": {
+                    "phone": "+1-212-736-3100",
+                    "website": "https://www.esbnyc.com/explore"
+                },
+                "building": {
+                    "levels": 102,
+                    "type": "office",
+                    "use": "office",
+                    "color": "beige",
+                    "start_date": 1931,
+                    "architecture": "art_deco",
+                    "height": 443.2
+                },
+                "edge": 58,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": true,
+                    "tactile_map": "near the entrace, following the tactile paving",
+                    "reception": true,
+                    "stairs": false,
+                    "elevator": true
+                },
+                "location_description": "on 5th Avenue, between the intersection with West 33rd Street and East 33rd Street and the intersection with West 34th Street and East 34th Street",
+                "coords": [2258.6443112416378, 2257.489831887794]
+            },
+            {
+                "name": "Food Gallery 32",
+                "city": "New York",
+                "commercial": "Korea Town",
+                "street": "West 32nd Street",
+                "housenumber": "11",
+                "categories": ["catering.food_court"],
+                "opening_hours": "Mo-Su 11:00 AM - 11:00 PM",
+                "contact": {
+                    "phone": "+1 212-967-1678",
+                    "website": "https://www.foodgallery32nyc.com/"
+                },
+                "edge": 14,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": true,
+                    "elevator": false
+                },
+                "location_description": "on West 32nd Street, between the intersection with Broadway and the intersection with 5th Avenue and East 32nd Street",
+                "coords": [1928.4395128753686, 2432.2340724931014]
+            },
+            {
+                "name": "Gammeeok",
+                "city": "New York",
+                "commercial": "Korea Town",
+                "street": "West 32nd Street",
+                "housenumber": "9",
+                "categories": ["catering.restaurant.korean"],
+                "opening_hours": "Open 24 hours, 7 days a week",
+                "branch": "NY",
+                "contact": {
+                    "phone": "+1 212-868-1180",
+                    "email": "contact@gammeeok.com",
+                    "website": "https://www.gammeeok.com"
+                },
+                "facilities": {
+                    "takeaway": true,
+                    "delivery": true
+                },
+                "catering": {
+                    "cuisine": "korean"
+                },
+                "edge": 14,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": true,
+                    "elevator": false
+                },
+                "location_description": "on West 32nd Street, between the intersection with Broadway and the intersection with 5th Avenue and East 32nd Street",
+                "coords": [1955.251293442575, 2462.2552737509072]
+            },
+            {
+                "name": "IchiUmi",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "East 32nd Street",
+                "housenumber": "6",
+                "categories": ["catering.restaurant.japanese"],
+                "opening_hours": "Mo-Su 11:45 AM - 3:30 PM; 4:00 PM - 10:00 PM",
+                "contact": {
+                    "phone": "+1 212-725-1333",
+                    "email": "info@ichiumi.com",
+                    "fax": "+1 212-725-1925",
+                    "website": "http://ichiumi.com"
+                },
+                "payment_options": {
+                    "visa": true,
+                    "mastercard": true,
+                    "discover_card": true,
+                    "american_express": true
+                },
+                "catering": {
+                    "cuisine": "japanese",
+                    "reservation": "required"
+                },
+                "edge": 35,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on East 32nd Street, between the intersection with 5th Avenue and West 32nd Street and the intersection with Madison Avenue",
+                "coords": [2319.1333638117203, 2775.7978683903193]
+            },
+            {
+                "name": "Joomak Banjum",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "6th Avenue",
+                "housenumber": "312",
+                "categories": ["catering.restaurant"],
+                "opening_hours": "Tu-Th 5:00 PM - 9:00 PM; Sa 5:00 PM - 9:30 PM",
+                "contact": {
+                    "phone": "+1 212-268-7888",
+                    "email": "plumpyduck@joomakbanjum.com",
+                    "website": "https://www.joomakbanjum.com/"
+                },
+                "catering": {
+                    "cuisine": "korean;chinese",
+                    "reservation": "required"
+                },
+                "edge": 65,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on 6th Avenuenear the intersection with West 28th Street",
+                "coords": [769.5783774266698, 3110.8024102056625]
+            },
+            {
+                "name": "Kosher in Midtown",
+                "city": "New York",
+                "district": "Manhattan Community Board 6",
+                "street": "East 34th Street",
+                "housenumber": "43",
+                "categories": ["catering.food_court", "kosher.only"],
+                "opening_hours": "Mo-Th 11:00 AM - 8:00 PM; Fr 11:00 AM - 3:00 PM; Su 11:00 AM - 8:00 PM",
+                "contact": {
+                    "phone": "+1-212-725-8100",
+                    "website": "https://kosherinmidtown.com"
+                },
+                "catering": {
+                    "cuisine": "international",
+                    "diet": {
+                        "kosher": true
+                    }
+                },
+                "edge": 42,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": true,
+                    "elevator": false
+                },
+                "location_description": "on East 34th Street, between the intersection with Madison Avenue and the intersection with Park Avenue",
+                "coords": [2996.151574931121, 2426.8653175253016]
+            },
+            {
+                "name": "Legends",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "West 33rd Street",
+                "housenumber": "6",
+                "categories": ["catering.pub"],
+                "opening_hours": "Mo-Su 11:00 AM - 11:00 PM",
+                "contact": {
+                    "phone": "+1-212-967-7792",
+                    "website": "https://www.legends33.com"
+                },
+                "edge": 16,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": true,
+                    "elevator": false
+                },
+                "location_description": "on West 33rd Street, between the intersection with 6th Avenue and the intersection with 5th Avenue and East 33rd Street",
+                "coords": [2025.9192888667556, 2323.799830969626]
+            },
+            {
+                "name": "Mad Dog & Beans Mexican Cantina",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "East 38th Street",
+                "housenumber": "5",
+                "categories": ["catering.restaurant.mexican"],
+                "opening_hours": "Su-Th 12:00 PM - 10:00 PM; We 12:00 PM - 11:00 PM; Th-Sa 12:00 PM - 12:00 AM",
+                "contact": {
+                    "phone": "+1-646-998-5722",
+                    "email": "info@mdb38.com",
+                    "website": "https://www.maddogandbeans.com"
+                },
+                "payment_options": {
+                    "debit_cards": true,
+                    "credit_cards": true,
+                    "nfc_mobile_payments": true
+                },
+                "catering": {
+                    "cuisine": "mexican"
+                },
+                "edge": 50,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on East 38th Street, between the intersection with 5th Avenue and West 38th Street and the intersection with Madison Avenue",
+                "coords": [3107.1894235583068, 1319.0756867099183]
+            },
+            {
+                "name": "McDonald's",
+                "city": "New York",
+                "street": "West 39th Street",
+                "district": "Flower District",
+                "housenumber": "809",
+                "categories": [
+                    "building.catering",
+                    "catering.fast_food.burger",
+                    "building.commercial"
+                ],
+                "opening_hours": "Mo-Su 7:00 AM - 11:00 PM",
+                "brand": "McDonald's",
+                "branch": "809 Ave Of The Americas",
+                "contact": {
+                    "phone": "+1 212 463 9495",
+                    "website": "http://www.mcnewyork.com/3835"
+                },
+                "facilities": {
+                    "smoking": false,
+                    "air_conditioning": true,
+                    "outdoor_seating": false,
+                    "takeaway": true,
+                    "delivery": true
+                },
+                "payment_options": {
+                    "cash": true,
+                    "contactless": true,
+                    "debit_cards": true,
+                    "credit_cards": true
+                },
+                "catering": {
+                    "cuisine": "burger"
+                },
+                "building": {
+                    "type": "retail",
+                    "height": 7.5
+                },
+                "edge": 31,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on West 39th Street, between the limit of the map and the intersection with 5th Avenue and East 39th Street",
+                "coords": [2671.587915651327, 733.8083507664242]
+            },
+            {
+                "name": "Mulberry & Vine",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "West 27th Street",
+                "housenumber": "55",
+                "categories": ["catering.restaurant"],
+                "opening_hours": "Mo-Th 11:00 AM - 9:00 PM; Fr-Sa 11:00 AM - 8:00 PM",
+                "contact": {
+                    "phone": "+1 212 252 8468",
+                    "website": "https://www.mulberryandvine.com/"
+                },
+                "facilities": {
+                    "smoking": false,
+                    "outdoor_seating": false,
+                    "takeaway": true
+                },
+                "catering": {
+                    "cuisine": "new_american"
+                },
+                "edge": 0,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": true,
+                    "elevator": false
+                },
+                "location_description": "on West 27th Streetnear the border of the map",
+                "coords": [734.7000963135732, 3290.596436556608]
+            },
+            {
+                "name": "Naya",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "West 33rd Street",
+                "housenumber": "10",
+                "categories": ["catering.fast_food"],
+                "opening_hours": "Mo-Th 11:00 AM - 8:00 PM; Fr 11:00 AM - 5:00 PM",
+                "contact": {
+                    "phone": "+1-646-692-6445",
+                    "website": "https://www.eatnaya.com/location/10-west-33rd-st-naya/"
+                },
+                "facilities": {
+                    "takeaway": true
+                },
+                "catering": {
+                    "cuisine": "middle_eastern"
+                },
+                "edge": 16,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on West 33rd Street, between the intersection with 6th Avenue and the intersection with 5th Avenue and East 33rd Street",
+                "coords": [2052.5927217510966, 2338.737387312478]
+            },
+            {
+                "name": "Nelly Spillanes",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "East 33rd Street",
+                "categories": ["catering.pub"],
+                "opening_hours": "Mo-Su 11:00 AM - 4:00 PM",
+                "contact": {
+                    "phone": "+12127929673",
+                    "website": "http://www.nellyspillanes.com"
+                },
+                "catering": {
+                    "cuisine": "irish"
+                },
+                "edge": 38,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on East 33rd Street, between the intersection with West 33rd Street and 5th Avenue and the intersection with Madison Avenue",
+                "coords": [2514.0375766632405, 2610.717783616575]
+            },
+            {
+                "name": "Nuchas",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "West 32nd Street",
+                "housenumber": "97",
+                "categories": ["building.catering", "catering.fast_food"],
+                "opening_hours": "Mo-Fr 7:30 AM - 8:00 PM; Sa 9:00 AM - 7:00 PM; Su 10:00 AM - 7:00 PM",
+                "contact": {
+                    "phone": "+1 212-912-0035",
+                    "website": "https://www.nuchas.com"
+                },
+                "facilities": {
+                    "takeaway": true,
+                    "delivery": true
+                },
+                "catering": {
+                    "cuisine": "mexican"
+                },
+                "building": {
+                    "height": 6.9
+                },
+                "edge": 13,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on West 32nd Streetnear the intersection with Broadway",
+                "coords": [1340.4377276772293, 2146.897894972111]
+            },
+            {
+                "name": "O'Reilly's Pub",
+                "city": "New York",
+                "district": "Midtown South",
+                "street": "West 31st Street",
+                "housenumber": "54",
+                "categories": ["catering.bar"],
+                "opening_hours": "11:00 AM - 2:00 AM",
+                "contact": {
+                    "phone": "+1 212-684-4244",
+                    "email": "info@oreillyspubnyc.com",
+                    "fax": "+1 212-689-5788",
+                    "website": "https://www.oreillyspubnyc.com"
+                },
+                "facilities": {
+                    "toilets": true,
+                    "outdoor_seating": true
+                },
+                "catering": {
+                    "cuisine": "pub"
+                },
+                "edge": 10,
+                "accessibility": {
+                    "wheelchair_accessible": "limited",
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": true,
+                    "elevator": false
+                },
+                "location_description": "on West 31st Street, between the intersection with 6th Avenue and the intersection with Broadway",
+                "coords": [1200.804958046257, 2480.6624336451528]
+            },
+            {
+                "name": "Peter Dillon's",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "East 36th Street",
+                "housenumber": "2",
+                "categories": ["catering.pub"],
+                "opening_hours": "Mo-Su 12:00 PM - 4:00 AM",
+                "branch": "36th Street",
+                "contact": {
+                    "phone": "+1-212-300-4091",
+                    "email": "peterdillons36@gmail.com",
+                    "website": "https://www.peterdillons.com/"
+                },
+                "facilities": {
+                    "outdoor_seating": true
+                },
+                "edge": 46,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": true,
+                    "elevator": false
+                },
+                "location_description": "on East 36th Street, between the intersection with 5th Avenue and West 36th Street and the intersection with Madison Avenue",
+                "coords": [2746.378671926598, 1794.2287625670356]
+            },
+            {
+                "name": "Pok\u00e9 Bar",
+                "city": "New York",
+                "district": "Garment District",
+                "street": "Broadway",
+                "housenumber": "1333",
+                "categories": ["catering.fast_food"],
+                "opening_hours": "Mo-Fr 11:00 AM - 9:00 PM; Sa 11:00 AM - 8:00 PM; Su 11:30 AM - 8:00 PM",
+                "contact": {
+                    "phone": "+1 212-244-4320",
+                    "website": "https://www.ilovepokebar.com/locations/new-york"
+                },
+                "edge": 96,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on Broadway, between the intersection with West 35th Street and the intersection with West 36th Street",
+                "coords": [1457.227311545815, 1206.5144430652404]
+            },
+            {
+                "name": "Science, Industry and Business Library",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "Madison Avenue",
+                "housenumber": "188",
+                "categories": ["education.library"],
+                "operator": "New York Public Library",
+                "name_other": {
+                    "short_name": "SIBL"
+                },
+                "contact": {
+                    "phone": "(917) 275-6975",
+                    "website": "https://www.nypl.org/locations/sibl"
+                },
+                "edge": 83,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": true,
+                    "reception": true,
+                    "stairs": true,
+                    "elevator": false
+                },
+                "location_description": "on Madison Avenue, between the intersection with East 34th Street and the intersection with East 35th Street",
+                "coords": [2851.163205409185, 2292.098611151242]
+            },
+            {
+                "name": "Shake Shack",
+                "city": "New York",
+                "district": "Garment District",
+                "street": "Broadway",
+                "housenumber": "1333",
+                "categories": ["catering.fast_food.burger"],
+                "opening_hours": "",
+                "brand": "Shake Shack",
+                "branch": "Herald Square",
+                "contact": {
+                    "phone": "+1 646-230-0696",
+                    "website": "https://www.shakeshack.com/location/herald-square-nyc"
+                },
+                "facilities": {
+                    "takeaway": true
+                },
+                "catering": {
+                    "cuisine": "burger",
+                    "capacity": 135
+                },
+                "edge": 96,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": true,
+                    "elevator": false
+                },
+                "location_description": "on Broadway, between the intersection with West 35th Street and the intersection with West 36th Street",
+                "coords": [1475.129501461857, 1092.3097030041715]
+            },
+            {
+                "name": "Solle Spa",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "West 33rd Street",
+                "housenumber": "4",
+                "categories": ["service.beauty.massage", "commercial"],
+                "opening_hours": "Mo-Sa 10:00 AM - 2:00 AM; Su 11:00 AM - 1:00 AM",
+                "contact": {
+                    "phone": "+1-212-564-2100",
+                    "website": "https://sollespa.com"
+                },
+                "commercial": {
+                    "type": "massage"
+                },
+                "edge": 16,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on West 33rd Street, between the intersection with 6th Avenue and the intersection with 5th Avenue and East 33rd Street",
+                "coords": [2093.654313452203, 2362.8054793210486]
+            },
+            {
+                "name": "Starbucks",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "5th Avenue",
+                "housenumber": "350",
+                "categories": [
+                    "catering.cafe.coffee",
+                    "catering.cafe.coffee_shop"
+                ],
+                "opening_hours": "Mo-Fr 6:30 AM - 6:00 PM",
+                "brand": "Starbucks",
+                "name_other": {
+                    "official_name": "Starbucks Coffee"
+                },
+                "contact": {
+                    "phone": "+1-212-564-9141",
+                    "website": "https://www.starbucks.com/store-locator/store/7549/34th-st-empire-state-building-350-fifth-avenue-new-york-ny-101180110-us"
+                },
+                "facilities": {
+                    "internet_access": true,
+                    "toilets": true,
+                    "outdoor_seating": false,
+                    "takeaway": true
+                },
+                "catering": {
+                    "cuisine": "coffee_shop"
+                },
+                "edge": 58,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": true,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on 5th Avenue, between the intersection with West 33rd Street and East 33rd Street and the intersection with West 34th Street and East 34th Street",
+                "coords": [2217.0595302140014, 2332.8622475003854]
+            },
+            {
+                "name": "Stavros Niarchos Foundation Library",
+                "old_name": "Mid-Manhattan Library",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "5th Avenue",
+                "housenumber": "455",
+                "categories": [
+                    "education.library",
+                    "building.public_and_civil"
+                ],
+                "opening_hours": "Mo-Th 8:00 AM - 9:00 PM; Fr 8:00 AM - 8:00 PM; Sa-Su 10:00 AM - 6:00 PM",
+                "operator": "New York Public Library",
+                "name_other": {
+                    "old_name": "Mid-Manhattan Library",
+                    "short_name": "SNFL",
+                    "loc_name": "SNFL"
+                },
+                "contact": {
+                    "phone": "+1 212-340-0863",
+                    "website": "https://www.nypl.org/locations/snfl"
+                },
+                "facilities": {
+                    "internet_access": true,
+                    "toilets": true,
+                    "air_conditioning": true
+                },
+                "building": {
+                    "height": 31
+                },
+                "edge": 64,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": true
+                },
+                "location_description": "on 5th Avenue, between the intersection with West 39th Street and East 39th Street and the intersection with East 40th Street",
+                "coords": [3218.7421059748367, 957.8996010567886]
+            },
+            {
+                "name": "Stout NYC",
+                "city": "New York",
+                "district": "Chelsea District",
+                "street": "West 33rd Street",
+                "housenumber": "133",
+                "categories": ["catering.pub"],
+                "opening_hours": "Th-Su 11:30 AM - 1:45 AM; Mo-We 11:30 AM - 11:45 PM",
+                "branch": "Flagship",
+                "contact": {
+                    "phone": "+1-212-629-6191",
+                    "website": "http://msg.stoutnyc.com/"
+                },
+                "facilities": {
+                    "toilets": true,
+                    "outdoor_seating": true
+                },
+                "catering": {
+                    "reservation": "required"
+                },
+                "edge": 15,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": true,
+                    "elevator": false
+                },
+                "location_description": "on West 33rd Street, between the intersection with 7th Avenue and the intersection with 6th Avenue",
+                "coords": [914.9597411926654, 1620.0911864182694]
+            },
+            {
+                "name": "Szechuan Gourmet",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "6th Avenue",
+                "housenumber": "21",
+                "categories": ["catering.restaurant"],
+                "opening_hours": "Mo-Fr 11:30 AM - 10:00 PM; Su 12:00 PM - 10:00 PM",
+                "contact": {
+                    "phone": "+1-212-921-0233",
+                    "website": "https://szechuan-gourmet.com/"
+                },
+                "facilities": {
+                    "takeaway": true,
+                    "delivery": true
+                },
+                "payment_options": {
+                    "cash": true,
+                    "credit_cards": true
+                },
+                "catering": {
+                    "cuisine": "chinese;tea",
+                    "reservation": "required"
+                },
+                "edge": 65,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": true,
+                    "elevator": false
+                },
+                "location_description": "on 6th Avenue, between the intersection with West 27th Street and the intersection with West 28th Street",
+                "coords": [629.9423747635461, 3040.966885088153]
+            },
+            {
+                "name": "The Australian NYC",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "West 38th Street",
+                "housenumber": "20",
+                "categories": ["catering.restaurant"],
+                "opening_hours": "Su 11:30 AM - 12:00 AM; We 11:30 AM - 11:00 PM; Th 11:30 AM - 2:00 AM; Sa 11:30 AM - 4:00 AM",
+                "contact": {
+                    "phone": "+1 212-869-9601",
+                    "email": "info@theaustraliannyc.com",
+                    "website": "https://theaustraliannyc.com/"
+                },
+                "facilities": {
+                    "takeaway": true,
+                    "delivery": true
+                },
+                "catering": {
+                    "cuisine": "australian",
+                    "reservation": "required"
+                },
+                "edge": 30,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": true,
+                    "elevator": false
+                },
+                "location_description": "on West 38th Street, between the intersection with 6th Avenue and the intersection with 5th Avenue and East 38th Street",
+                "coords": [2592.4752351260004, 1107.1759299537687]
+            },
+            {
+                "name": "The Harold",
+                "city": "New York",
+                "district": "Midtown South",
+                "street": "Broadway",
+                "housenumber": "1271",
+                "categories": [
+                    "gluten_free",
+                    "catering.restaurant.american",
+                    "vegetarian"
+                ],
+                "opening_hours": "Mo-Fr 7:00 AM - 11:00 PM; Sa-Su 8:00 AM - 11:00 PM",
+                "contact": {
+                    "phone": "+1-212-686-1888",
+                    "website": "https://www.theharoldnyc.com/"
+                },
+                "catering": {
+                    "cuisine": "american;breakfast",
+                    "diet": {
+                        "vegetarian": true,
+                        "gluten_free": true
+                    }
+                },
+                "edge": 95,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on Broadway, between the intersection with West 31st Street and the intersection with West 32nd Street",
+                "coords": [1311.6951310971112, 2217.8331251414234]
+            },
+            {
+                "name": "The Italian Table",
+                "city": "New York",
+                "district": "Manhattan Community Board 6",
+                "street": "Madison Avenue",
+                "housenumber": "241",
+                "categories": ["catering.restaurant.italian"],
+                "opening_hours": "Mo-Su 7:00 AM - 10:00 PM",
+                "branch": "Madison 38th",
+                "contact": {
+                    "phone": "+1-646-779-7667",
+                    "website": "https://www.italiantable.com"
+                },
+                "payment_options": {
+                    "contactless": true,
+                    "debit_cards": true,
+                    "credit_cards": true
+                },
+                "catering": {
+                    "cuisine": "italian"
+                },
+                "edge": 86,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": true,
+                    "elevator": false
+                },
+                "location_description": "on Madison Avenue, between the intersection with East 37th Street and the intersection with East 38th Street",
+                "coords": [3334.8543670888093, 1588.4995330278002]
+            },
+            {
+                "name": "The Morgan Library & Museum",
+                "city": "New York",
+                "district": "Manhattan Community Board 6",
+                "street": "Madison Avenue",
+                "housenumber": "225",
+                "categories": ["entertainment.museum"],
+                "opening_hours": "Tu-Su 10:00 AM - 5:30 PM",
+                "contact": {
+                    "phone": "+1-212-685-0008",
+                    "website": "https://www.themorgan.org/"
+                },
+                "edge": 85,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on Madison Avenue, between the intersection with East 36th Street and the intersection with East 37th Street",
+                "coords": [3292.7119521970844, 1881.9714707612197]
+            },
+            {
+                "name": "Tina's Cuban Cuisine",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "Madison Avenue",
+                "housenumber": "179",
+                "categories": ["catering.fast_food"],
+                "opening_hours": "Mo-Fr 8:00 AM - 8:00 PM",
+                "contact": {
+                    "phone": "+1-212-679-3500",
+                    "website": "https://tinascubancuisine.com"
+                },
+                "catering": {
+                    "cuisine": "cuban"
+                },
+                "edge": 82,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": true,
+                    "elevator": false
+                },
+                "location_description": "on Madison Avenue, between the intersection with East 33rd Street and the intersection with East 34th Street",
+                "coords": [2827.727108273012, 2534.4595497673267]
+            },
+            {
+                "name": "Valley Bank",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "5th Avenue",
+                "housenumber": "279",
+                "categories": ["service.financial.bank"],
+                "opening_hours": "Mo-Fr 9:00 AM - 5:00 PM",
+                "contact": {
+                    "phone": "+1-212-481-6109",
+                    "website": "https://locations.valley.com/ny/newyork/valley-bank-135.html"
+                },
+                "edge": 54,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on 5th Avenue, between the intersection with West 29th Street and the intersection with East 30th Street and West 30th Street",
+                "coords": [1896.0661555372626, 3178.746668231017]
+            },
+            {
+                "name": "Wafels & Dinges",
+                "city": "New York",
+                "district": "Herald Square",
+                "street": "West 35th Street",
+                "housenumber": "102",
+                "categories": ["building.catering", "catering.restaurant"],
+                "opening_hours": "9:00 AM - 10:00 PM",
+                "branch": "Herald Square",
+                "contact": {
+                    "phone": "+1 646-257-2592",
+                    "website": "https://dinges.nyc/"
+                },
+                "catering": {
+                    "cuisine": "dessert"
+                },
+                "edge": 22,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on West 35th Street, between the intersection with Broadway and the intersection with 6th Avenue",
+                "coords": [1548.2760256816905, 1411.4401854672121]
+            },
+            {
+                "name": "Wells Fargo",
+                "street": "Madison Avenue",
+                "categories": ["service.financial.bank"],
+                "opening_hours": "Mo-Fr 9:00 AM - 5:00 PM",
+                "brand": "Wells Fargo",
+                "contact": {
+                    "phone": "+1-212-213-0936",
+                    "website": "https://www.wellsfargo.com/locator/bank/180__MADISON__AVE_NEW__YORK_NY_10016/"
+                },
+                "edge": 82,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on Madison Avenue, between the intersection with East 33rd Street and the intersection with East 34th Street",
+                "coords": [2767.1584935891415, 2437.821827742555]
+            },
+            {
+                "name": "Windfall Lounge",
+                "city": "New York",
+                "district": "Manhattan Community Board 5",
+                "street": "West 39th Street",
+                "housenumber": "23",
+                "categories": ["catering.restaurant"],
+                "opening_hours": "Mo 3:00 PM - 11:00 PM; We 3:00 PM - 12:00 AM; Fr 3:00 PM - 2:00 AM",
+                "contact": {
+                    "phone": "+1-212-869-4606",
+                    "fax": "+1-212-869-3885",
+                    "website": "https://windfallnyc.com/"
+                },
+                "facilities": {
+                    "toilets": true
+                },
+                "payment_options": {
+                    "cash": true,
+                    "credit_cards": true
+                },
+                "catering": {
+                    "reservation": "required"
+                },
+                "edge": 31,
+                "accessibility": {
+                    "wheelchair_accessible": false,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": true,
+                    "elevator": false
+                },
+                "location_description": "on West 39th Streetnear the border of the map",
+                "coords": [2658.8948665959338, 753.8837119462008]
+            },
+            {
+                "name": "Woorijip",
+                "city": "New York",
+                "commercial": "Korea Town",
+                "street": "West 32nd Street",
+                "housenumber": "12",
+                "categories": ["catering.restaurant.korean"],
+                "opening_hours": "Mo-We 9:30 AM - 9:00 PM; Fr-Su 9:30 AM - 10:00 PM",
+                "contact": {
+                    "phone": "+1 212-244-1115",
+                    "email": "info@woorijip32.com",
+                    "fax": "+1 212-244-4726",
+                    "website": "http://woorijip32.com/"
+                },
+                "facilities": {
+                    "smoking": false,
+                    "takeaway": true,
+                    "delivery": false
+                },
+                "catering": {
+                    "cuisine": "korean"
+                },
+                "edge": 14,
+                "accessibility": {
+                    "wheelchair_accessible": true,
+                    "tactile_paving": false,
+                    "tactile_map": false,
+                    "reception": false,
+                    "stairs": false,
+                    "elevator": false
+                },
+                "location_description": "on West 32nd Street, between the intersection with Broadway and the intersection with 5th Avenue and East 32nd Street",
+                "coords": [1868.064584914071, 2529.2003612251183]
+            }
+        ]
+    },
+    "context": {
+        "name": "New York City, Empire State Building neighborhood",
+        "description": "The Empire State Building neighborhood is a bustling area in Midtown Manhattan, known for its iconic skyscraper and vibrant atmosphere. It is home to a mix of commercial, residential, and cultural attractions, making it a popular destination for tourists and locals alike. The neighborhood offers a variety of dining, shopping, and entertainment options, as well as easy access to public transportation.",
+        "scale": "500 ft: 1.5 in",
+        "north_beyond_map": "Midtown North - Bryant Park and the New York Public Library. A green oasis with cultural events and the stunning Beaux-Arts library building.",
+        "south_beyond_map": "Flatiron District - Flatiron Building and Madison Square Park. Known for its iconic flatiron-shaped building, trendy shops, and eateries.",
+        "west_beyond_map": "Hudson Yards - The Vessel and modern skyscrapers. A newly developed area with luxury shopping, dining, and innovative public spaces.",
+        "east_beyond_map": "Midtown East - Chrysler Building and Grand Central Terminal. Features the iconic Art Deco skyscraper and a major transportation hub with shops and restaurants."
+    }
+}

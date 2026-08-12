@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { existsSync, readdirSync, rmSync, statSync } from 'fs';
+import { createReadStream, existsSync, readdirSync, rmSync, statSync } from 'fs';
 import { resolve } from 'path';
 
 // Browsers only expose navigator.mediaDevices in a secure context. Because this
@@ -72,6 +72,25 @@ function pruneOversizedAssets({ maxBytes = PAGES_MAX_FILE_BYTES } = {}) {
   };
 }
 
+function serveSpikeModels() {
+  return {
+    name: 'serve-spike-models',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!req.url.startsWith('/models/')) return next();
+        const subPath = req.url.replace(/^\/models\//, '').split('?')[0];
+        const filePath = resolve('../explore/wllama-spike/models', subPath);
+        if (existsSync(filePath) && statSync(filePath).isFile()) {
+          res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+          res.setHeader('Content-Type', 'application/octet-stream');
+          return createReadStream(filePath).pipe(res);
+        }
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig(async () => ({
   // Project Pages serve from https://<user>.github.io/<repo>/, so assets need
   // that prefix. The workflow sets VITE_BASE; local builds stay at '/'.
@@ -79,6 +98,7 @@ export default defineConfig(async () => ({
   plugins: [
     react(),
     pruneOversizedAssets(),
+    serveSpikeModels(),
     ...(await httpsPlugins()),
   ],
   publicDir: 'resources',
@@ -97,6 +117,10 @@ export default defineConfig(async () => ({
     port: 5173,
     open: true,
     allowedHosts: true,
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
     // Only use the tunnel-style HMR socket when actually behind an HTTPS tunnel.
     // On plain http://localhost:5173 this must stay default or the client tries
     // wss://localhost and the page silently loses its dev connection.

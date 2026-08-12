@@ -15,10 +15,160 @@ export function TactilePanel({
   showExplorer, onShowExplorerChange,
   showAudiom, onShowAudiomChange,
   hasMapboxToken,
+  // MapIO Dispatcher & Map props
+  selectedMapKey, onSelectMapKey, MAPIO_MAPS, mapInfo, isLoadingMap,
+  isListening, toggleListening, transcript, lastAnswer, isProcessing, handleQuery, setTranscript,
+  llmBackend, onLlmBackendChange,
 }) {
   return (
     <section className="panel-section">
       <h2>Tactile map</h2>
+
+      {/* MapIO Map Selection & LLM Engine Dropdown */}
+      {MAPIO_MAPS && (
+        <div className="map-selector-group" style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.3rem' }}>
+            MapIO Map Model:
+          </label>
+          <select
+            value={selectedMapKey || 'new_york'}
+            onChange={(e) => onSelectMapKey && onSelectMapKey(e.target.value)}
+            disabled={isLoadingMap}
+            style={{
+              width: '100%',
+              padding: '0.4rem 0.6rem',
+              borderRadius: '6px',
+              border: '1px solid #ccc',
+              background: '#fff',
+              fontSize: '0.9rem',
+              marginBottom: '0.5rem',
+            }}
+          >
+            {Object.values(MAPIO_MAPS).map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+
+          <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.3rem' }}>
+            LLM Engine:
+          </label>
+          <select
+            value={llmBackend || 'wllama'}
+            onChange={(e) => onLlmBackendChange && onLlmBackendChange(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '0.4rem 0.6rem',
+              borderRadius: '6px',
+              border: '1px solid #ccc',
+              background: '#fff',
+              fontSize: '0.85rem',
+            }}
+          >
+            <option value="wllama">⚡ In-Tab WASM (Wllama - Zero Ports)</option>
+            <option value="http">🌐 Local Router (HTTP Port 8081)</option>
+          </select>
+
+          {isLoadingMap ? (
+            <p className="inline-note" style={{ color: '#0066cc', marginTop: '0.3rem' }}>Loading map model...</p>
+          ) : mapInfo ? (
+            <p className="inline-note" style={{ fontSize: '0.75rem', color: '#555', marginTop: '0.3rem' }}>
+              Loaded: {mapInfo.pois} POIs, {mapInfo.nodes} nodes, {mapInfo.edges} streets
+            </p>
+          ) : null}
+        </div>
+      )}
+
+      {/* Speak & Voice Question Controls */}
+      <div className="voice-control-group" style={{
+        margin: '1rem 0',
+        padding: '0.75rem',
+        borderRadius: '8px',
+        background: 'rgba(0, 102, 204, 0.06)',
+        border: '1px solid rgba(0, 102, 204, 0.2)'
+      }}>
+        <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+          Voice Questions (Point & Ask):
+        </label>
+        
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+          <button
+            type="button"
+            onClick={toggleListening}
+            style={{
+              flex: 1,
+              padding: '0.5rem',
+              borderRadius: '6px',
+              border: 'none',
+              background: isListening ? '#dc3545' : '#0066cc',
+              color: '#fff',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.4rem',
+            }}
+          >
+            <span style={{ fontSize: '1.1rem' }}>{isListening ? '⏹' : '🎙'}</span>
+            <span>{isListening ? 'Stop Listening' : 'Speak / Ask'}</span>
+          </button>
+        </div>
+
+        {/* Live Transcript / Manual Input */}
+        <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.4rem' }}>
+          <input
+            type="text"
+            placeholder={isListening ? 'Listening...' : 'Or type a question...'}
+            value={transcript || ''}
+            onChange={(e) => setTranscript && setTranscript(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleQuery && handleQuery(transcript);
+            }}
+            style={{
+              flex: 1,
+              padding: '0.35rem 0.5rem',
+              borderRadius: '4px',
+              border: '1px solid #ccc',
+              fontSize: '0.82rem',
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => handleQuery && handleQuery(transcript)}
+            disabled={isProcessing || !transcript?.trim()}
+            style={{
+              padding: '0.35rem 0.6rem',
+              borderRadius: '4px',
+              border: '1px solid #0066cc',
+              background: '#fff',
+              color: '#0066cc',
+              fontWeight: 600,
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+            }}
+          >
+            {isProcessing ? '...' : 'Send'}
+          </button>
+        </div>
+
+        {/* Spoken Answer */}
+        {lastAnswer ? (
+          <div style={{
+            marginTop: '0.4rem',
+            padding: '0.4rem 0.6rem',
+            background: '#fff',
+            borderRadius: '4px',
+            borderLeft: '3px solid #0066cc',
+            fontSize: '0.8rem',
+            lineHeight: '1.3',
+            color: '#222'
+          }}>
+            <strong>Answer:</strong> {lastAnswer}
+          </div>
+        ) : null}
+      </div>
 
       <label className="switch-row">
         <input
@@ -40,8 +190,6 @@ export function TactilePanel({
             onChange={onPinScaleChange}
           />
 
-          {/* The explorer derives its own bbox from the registered material, so
-              padding is meaningless while it is running. */}
           {!showExplorer && (
             <SliderField
               label={`Grid padding: ${Math.round(bboxPadding * 100)}%`}
@@ -83,3 +231,4 @@ export function TactilePanel({
 }
 
 export default TactilePanel;
+

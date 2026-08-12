@@ -8,6 +8,7 @@ import LocationSearch from './components/LocationSearch';
 import TactilePanel from './components/TactilePanel';
 import { useMapbox, GH_HQ } from './hooks/useMapbox';
 import { usePinGrid } from './hooks/usePinGrid';
+import { useMapioDispatcher } from './hooks/useMapioDispatcher';
 import { featureToPoint, featureToLabel, reverseLookup } from './lib/geocoding';
 import { syncPointMarker } from './lib/mapMarkers';
 import asset from './lib/assetUrl';
@@ -19,9 +20,6 @@ import { AudiomAvatar } from './AudiomAvatar';
  *
  * Composition root only — map lifecycle lives in useMapbox, grid derivation in
  * usePinGrid, and the panels are presentational components.
- *
- * The AccessMap routing stack, Mapillary frontage imagery and the YOLO entrance
- * detector were removed from this branch; they remain on `main` and `streetui`.
  */
 export default function App() {
   const mapboxToken = (import.meta.env.VITE_MAPBOX_TOKEN || '').trim();
@@ -42,6 +40,24 @@ export default function App() {
   const probeMarkerRef = useRef(null);
   const fingerCoordRef = useRef(null);
   const cornerFractionsRef = useRef(null);
+  const [llmBackend, setLlmBackend] = useState('wllama');
+
+  // MapIO Dispatcher & Map selection hook
+  const {
+    selectedMapKey,
+    setSelectedMapKey,
+    selectedMap,
+    MAPIO_MAPS,
+    isLoadingMap,
+    mapInfo,
+    isListening,
+    transcript,
+    lastAnswer,
+    isProcessing,
+    toggleListening,
+    handleQuery,
+    setTranscript,
+  } = useMapioDispatcher({ coordRef: fingerCoordRef, backend: llmBackend });
 
   // Bias geocoder results toward what the user is looking at.
   const proximity = useMemo(
@@ -49,8 +65,6 @@ export default function App() {
     [point],
   );
 
-  // While the explorer runs, a map click drops a ground-truth reference marker
-  // to check registration against; otherwise it sets the location.
   const explorerActive = showExplorer && showTactile;
   const handleMapClick = useCallback(
     async (clicked) => {
@@ -79,13 +93,6 @@ export default function App() {
     cornerFractionsRef,
   });
 
-  // Corner fractions shrink the full-device bbox down to just the pin area.
-  //
-  // brailledoodle_corners.json stores the four calibrated corners as PIXEL
-  // coordinates in braille.png, so they only become fractions once divided by
-  // that image's natural dimensions — hence loading the template alongside it.
-  // Assigning the raw array here yields undefined for every side in
-  // shrinkBboxToGrid, which turns the whole bbox into NaN.
   useEffect(() => {
     let cancelled = false;
 
@@ -95,7 +102,7 @@ export default function App() {
         const img = new Image();
         img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
         img.onerror = () => resolve(null);
-        img.src = asset('braille.png');
+        img.src = selectedMap?.templateUrl ? asset(selectedMap.templateUrl) : asset('braille.png');
       }),
     ])
       .then(([cornersData, dims]) => {
@@ -111,23 +118,21 @@ export default function App() {
           bottom: Math.max(bl[1], br[1]) / dims.h,
         };
       })
-      .catch(() => { /* uncalibrated: usePinGrid falls back to the full bbox */ });
+      .catch(() => { /* uncalibrated fallback */ });
 
     return () => { cancelled = true; };
-  }, []);
+  }, [selectedMap]);
 
   useEffect(() => {
     syncPointMarker(mapRef.current, placeMarkerRef, point, 'place');
   }, [mapRef, point]);
 
-  // Fly to a newly chosen location.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !point) return;
     map.easeTo({ center: [point.lng, point.lat], duration: 600 });
   }, [mapRef, point]);
 
-  // Clear any stale probe when the explorer is switched off.
   useEffect(() => {
     if (!explorerActive) setGroundTruthProbe(null);
   }, [explorerActive]);
@@ -185,16 +190,32 @@ export default function App() {
           showAudiom={showAudiom}
           onShowAudiomChange={setShowAudiom}
           hasMapboxToken={Boolean(mapboxToken)}
+          // MapIO props
+          selectedMapKey={selectedMapKey}
+          onSelectMapKey={setSelectedMapKey}
+          MAPIO_MAPS={MAPIO_MAPS}
+          isLoadingMap={isLoadingMap}
+          mapInfo={mapInfo}
+          isListening={isListening}
+          toggleListening={toggleListening}
+          transcript={transcript}
+          lastAnswer={lastAnswer}
+          isProcessing={isProcessing}
+          handleQuery={handleQuery}
+          setTranscript={setTranscript}
+          llmBackend={llmBackend}
+          onLlmBackendChange={setLlmBackend}
         />
       </Sidebar>
 
       <MapCanvas containerRef={mapContainerRef} hasToken={Boolean(mapboxToken)}>
         {showExplorer && showTactile && (
           <TactileExplorer
+            key={selectedMapKey}
             bbox={pinBbox}
             mapRef={mapRef}
             mapLoadedRef={mapLoadedRef}
-            templateUrl={asset('braille.png')}
+            templateUrl={asset(selectedMap.templateUrl)}
             pinGridRef={pinGridRawRef}
             onCoord={(coord) => { fingerCoordRef.current = coord; }}
             groundTruthProbe={groundTruthProbe}
@@ -208,3 +229,4 @@ export default function App() {
     </div>
   );
 }
+
