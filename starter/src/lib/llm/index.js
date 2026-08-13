@@ -95,12 +95,87 @@ export async function probeRuntime({ fetchImpl, baseUrl, timeoutMs = 1500, env }
 }
 
 /**
+ * Where a tier's weights come from, after the environment has had its say.
+ *
+ * Modelled on how `VITE_BUILDINGS_URL` is documented in
+ * `docs/deploy-github-pages.md` §3.2, because the problem is the same one: an
+ * asset too large for GitHub Pages, which therefore has a local path that is
+ * right in `npm run dev` and wrong everywhere else.
+ *
+ *   unset  → the profile's own `url` (dev: `/models/…`, served by
+ *            `serveSpikeModels()`), with `hf` still behind it as a fallback
+ *   ''     → no local URL at all; go straight to Hugging Face. This is the
+ *            Pages configuration, where `pruneOversizedAssets()` guarantees
+ *            `/models/*.gguf` is a 404 and trying it first only wastes a
+ *            request
+ *   a URL  → that URL. An external CORS host, or the first shard of a split
+ *            GGUF published as GitHub Release assets
+ *
+ * The HF override is two variables and they are all-or-nothing: a repo without
+ * a file path has to be globbed to be useful, and globbing a third-party repo is
+ * what aborted the WASM module (see the warning above `PROFILES`). Setting the
+ * repo to `''` disables the fallback entirely, which is the right setting when a
+ * pinned `VITE_MODEL_URL` must be the only thing that can ever load.
+ *
+ * @param {object} [opts]
+ * @param {object} [opts.profile]  the profile whose defaults are being layered over
+ * @param {object} [opts.env]      injected environment, for tests
+ * @param {string} [opts.urlVar]   env var holding the local/first-shard URL
+ * @param {string} [opts.repoVar]  env var holding the HF repo
+ * @param {string} [opts.fileVar]  env var holding the HF file path (exact, never a glob)
+ * @returns {{url?: string|undefined, hf?: object|undefined}} A patch to spread
+ *   over a PROFILE (not over an engine spec — `WllamaEngine` resolves `url ??
+ *   profile.url`, so an `undefined` in a spec means "not overridden" and could
+ *   never express "there is no local copy"). A key is present only when the
+ *   environment decided something; a present key whose value is `undefined`
+ *   means that source is switched off.
+ */
+export function resolveModelSource({
+  profile,
+  env,
+  urlVar = 'VITE_MODEL_URL',
+  repoVar = 'VITE_MODEL_HF_REPO',
+  fileVar = 'VITE_MODEL_HF_FILE',
+} = {}) {
+  const out = {};
+
+  const url = readEnv(urlVar, env);
+  // `undefined` is "not configured"; `''` is a configuration, and it means
+  // "there is no local copy", which is exactly the Pages case.
+  if (url !== undefined) out.url = String(url).trim() || undefined;
+
+  const repo = readEnv(repoVar, env);
+  const filePath = readEnv(fileVar, env);
+  if (repo !== undefined || filePath !== undefined) {
+    const repoValue = String(repo ?? profile?.hf?.repo ?? '').trim();
+    const fileValue = String(filePath ?? profile?.hf?.filePath ?? '').trim();
+    // Checked before the completeness test, and unconditionally: a glob is
+    // wrong even when the rest of the configuration is too incomplete to use it.
+    if (fileValue.includes('*') || fileValue.includes('?')) {
+      throw new Error(
+        `resolveModelSource: ${fileVar}="${fileValue}" is a glob. Pin an exact filename — ` +
+        'a glob resolves against a third-party repo listing and can load a model that aborts ' +
+        'the WASM module (see modelProfiles.js).',
+      );
+    }
+    out.hf = repoValue && fileValue ? { repo: repoValue, filePath: fileValue } : undefined;
+  }
+
+  return out;
+}
+
+/**
  * Build a wllama transport with the profiles this system actually serves.
  *
  * Both tiers by default, because `placeIndex.js` needs `l1` and the tool loop
  * needs `l3`, and §8 is explicit that this is TWO instances rather than one
  * model with two modes. Pass `embed: null` for a chat-only page and save the
  * second worker.
+ *
+ * Both tiers take their weight source from the environment via
+ * {@link resolveModelSource} — `VITE_MODEL_URL`/`VITE_MODEL_HF_*` for the chat
+ * tier, `VITE_EMBED_URL`/`VITE_EMBED_HF_*` for the embedding one — applied to
+ * the *profile*, so an explicit `chat: {url}` from a caller still wins over both.
  *
  * @param {object} [opts]
  * @param {string} [opts.profile]        chat profile id; see chooseChatProfile
@@ -122,9 +197,21 @@ export function createWllamaTransport({
     declaredMemoryGB: declaredMemoryGB ?? (Number(readEnv('VITE_LLM_MEMORY_GB', env)) || undefined),
   });
 
+  const chatProfile = { ...PROFILES[choice.id], ...resolveModelSource({ profile: PROFILES[choice.id], env }) };
+  const embedProfile = {
+    ...PROFILES['embeddinggemma-q8'],
+    ...resolveModelSource({
+      profile: PROFILES['embeddinggemma-q8'],
+      env,
+      urlVar: 'VITE_EMBED_URL',
+      repoVar: 'VITE_EMBED_HF_REPO',
+      fileVar: 'VITE_EMBED_HF_FILE',
+    }),
+  };
+
   const transport = new WllamaTransport({
-    chat: { profile: choice.id, ...chat },
-    embed: embed === null ? undefined : { profile: 'embeddinggemma-q8', ...embed },
+    chat: { ...chat, profile: chat.profile ?? chatProfile },
+    embed: embed === null ? undefined : { ...embed, profile: embed.profile ?? embedProfile },
     ...rest,
   });
   transport.profileChoice = choice;

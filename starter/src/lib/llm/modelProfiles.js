@@ -173,23 +173,66 @@ const EMBED_LOAD = {
 };
 
 /**
- * The catalogue. `url` is left undefined on purpose: model hosting is a
- * deployment decision (OPFS-cached same-origin shards for a self-hosted build,
- * a HuggingFace `resolve/main` URL for a Pages build), so the app supplies it
- * and this file supplies everything else.
+ * ⚠️ **NEVER PUT A GLOB IN AN `hf.filePath`.** `loadModelFromHF` expands a glob
+ * against the repo's file listing and loads whatever comes back, so a pattern
+ * like `UD-Q4_K_XL/*.gguf` is a promise that a third party will never add a file
+ * to that folder. They did. It matched an auxiliary Gemma 4 model, llama.cpp
+ * printed
+ *
+ *     Gemma4Assistant requires ctx_other to be set
+ *     GGML_ASSERT(ctx_tgt != nullptr) failed
+ *
+ * and a failed `GGML_ASSERT` aborts the entire WASM module — every later call in
+ * the tab dies with `RuntimeError: unreachable`, including the retry, because
+ * there is no module left to retry into. Pin exact filenames. A missing pinned
+ * file is a 404 that the `url`→`hf` fallback in `wllamaTransport.js` can survive;
+ * a wrong matched file is not survivable at all.
+ *
+ * `url` is the *local* source and `hf` the remote fallback, in that order (see
+ * `WllamaEngine.load`). Which of the two a given deployment actually gets is a
+ * deployment decision, so `llm/index.js#resolveModelSource` layers env vars over
+ * both — see there for `VITE_MODEL_URL` and friends.
  */
 export const PROFILES = {
   /**
    * The in-tab chat default. 2.62 GB is the exact size of
    * `gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf` as split for the W spike — the same
    * QAT + UD-Q4_K_XL family as the E4B the native parity benchmark measured.
+   *
+   * `url` points at the FIRST SHARD of that split; wllama's `llama-gguf-split`
+   * handling pulls 00002..00005 itself. In `npm run dev` this resolves through
+   * `serveSpikeModels()` in `vite.config.js`, which serves `/models/*` out of
+   * `../explore/wllama-spike/models/`. It does NOT resolve in a deployed build:
+   * `pruneOversizedAssets()` drops everything over 100 MB from `dist/` because
+   * GitHub Pages will not serve it, so a Pages build has no weights at all and
+   * MUST be pointed at an external CORS host via `VITE_MODEL_URL` — or fall
+   * through to `hf` below.
+   *
+   * ✅ RESOLVED 2026-08-12: **the single 2.62 GB file loads.** Chrome/WebGPU,
+   * RTX 3080, wllama 3.5.1 — `url` above is that unsplit file and it opened.
+   *
+   * This had been the open question, and the assumption behind it was wrong in a
+   * useful direction. §0.1 notes v3 handles `llama-gguf-split` because of the
+   * **2 GB ArrayBuffer cap**, and a 2.62 GB file walks straight into it, so the
+   * W spike split the model on 2026-08-10 and everything after assumed shards
+   * were mandatory. They are not: v3's fetch path streams past the cap. So a
+   * deployed build needs NO hosted weights of ours — `hf` below resolves to
+   * unsloth directly, public, no API key (`general.license = gemma`).
+   *
+   * Verified on one machine and one browser. The five shards in
+   * `explore/wllama-spike/models/` stay the fallback if the cap ever bites
+   * somewhere tighter: publish them as GitHub Release assets (largest 1.32 GB,
+   * under the 2 GB per-asset limit) and set `VITE_MODEL_URL` to the first.
    */
   'gemma-4-e2b-q4': {
     id: 'gemma-4-e2b-q4',
     tier: TIER.REASON,
     label: 'Gemma 4 E2B (QAT, UD-Q4_K_XL)',
-    url: '/models/e2b-q4-00001-of-00005.gguf',
-    hf: { repo: 'unsloth/gemma-4-E2B-it-qat-GGUF', filePath: 'UD-Q4_K_XL/*.gguf' },
+    url: '/models/gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf',
+    hf: {
+      repo: 'unsloth/gemma-4-E2B-it-qat-GGUF',
+      filePath: 'UD-Q4_K_XL/gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf',
+    },
     weightsBytes: 2_620_370_976,
     /**
      * MEASURED 2026-08-11 from llama.cpp's own load log at `n_ctx: 8192`:
@@ -209,12 +252,21 @@ export const PROFILES = {
    * measurement: plan §7.2 records Q4_0 at 4.84 GB and Google's QAT q4_0 at
    * 5.15 GB. Nobody has loaded this in a tab here — `measured: false` says so,
    * and `planFootprint()` reports the pessimistic end.
+   *
+   * ⚠️ The `filePath` follows unsloth's naming convention rather than a listing
+   * anyone checked — it is the E2B name with E2B→E4B, and it is UNVERIFIED. It
+   * is still pinned rather than globbed: a wrong pin 404s and is recoverable, a
+   * glob loads the wrong model and aborts the WASM module. Set
+   * `VITE_MODEL_HF_FILE` if the real name differs.
    */
   'gemma-4-e4b-q4': {
     id: 'gemma-4-e4b-q4',
     tier: TIER.REASON,
     label: 'Gemma 4 E4B (QAT, q4)',
-    hf: { repo: 'unsloth/gemma-4-E4B-it-qat-GGUF', filePath: 'UD-Q4_K_XL/*.gguf' },
+    hf: {
+      repo: 'unsloth/gemma-4-E4B-it-qat-GGUF',
+      filePath: 'UD-Q4_K_XL/gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf',
+    },
     weightsBytesRange: [4.84 * GB, 5.15 * GB],
     measured: false,
     load: { ...CHAT_LOAD },

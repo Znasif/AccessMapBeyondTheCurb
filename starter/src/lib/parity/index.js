@@ -32,7 +32,14 @@
  *
  *   `transcript.js`    the recorded run → cases and turns, both utterances
  *   `world.js`         one map: ported Graph + adapter + registry + L1 index
- *   `mapioAdapter.js`  the ported graph as a `WorldAdapter` (⚠️ NOT camio — see the file)
+ *   `../adapters/mapioWorldAdapter.js`
+ *                      the ported graph as a `WorldAdapter` (⚠️ NOT camio — see
+ *                      the file). It lives beside the other adapters rather than
+ *                      here because product code loads it too: the in-tab
+ *                      dispatcher runs the same world the benchmark does, and a
+ *                      React hook must not have to import a test harness to get
+ *                      it. Re-exported here so `parity/index.js` stays the one
+ *                      import the benchmark needs.
  *   `briefing.js`      the standing world description the survey turns need
  *   `harnessTools.js`  `route_to` + the two accessibility readers M7 did not ship
  *   `runner.js`        the platform-free loop
@@ -43,7 +50,7 @@
  * wllama client. Same runner.
  */
 
-export * from './mapioAdapter.js';
+export * from '../adapters/mapioWorldAdapter.js';
 export * from './briefing.js';
 export * from './harnessTools.js';
 export * from './world.js';

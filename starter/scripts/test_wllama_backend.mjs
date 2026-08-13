@@ -31,6 +31,7 @@ import { filterTools } from '../src/lib/toolFilter.js';
 import { WllamaTransport, WllamaEngine } from '../src/lib/llm/wllamaTransport.js';
 import {
   resolveBackend, createLLMClient, createWllamaTransport, describeBudget, BACKEND,
+  resolveModelSource,
 } from '../src/lib/llm/index.js';
 import {
   PROFILES, chooseChatProfile, planFootprint, kvUpperBoundBytes, weightBounds,
@@ -509,14 +510,81 @@ const clientFor = (transport) => new LocalLLMClient({ transport });
 {
   // A profile with neither `url` nor `hf`: model hosting is a deployment
   // decision, so this is the shape of a half-configured app, not a typo.
+  // ⚠️ Both sources are stripped explicitly. The E2B profile now ships a `url`
+  // (the first shard the dev server serves), so dropping only `hf` no longer
+  // leaves it sourceless — it leaves it on the local path.
   const engine = new WllamaEngine({
-    profile: { ...PROFILES['gemma-4-e2b-q4'], hf: undefined },
+    profile: { ...PROFILES['gemma-4-e2b-q4'], url: undefined, hf: undefined },
     createInstance: async () => new FakeWllama(),
   });
   let threw = null;
   try { await engine.load(); } catch (err) { threw = err; }
   check(/no model source/.test(String(threw?.message)), 'a profile with no url and no hf says so',
     String(threw?.message).slice(0, 70));
+}
+
+/* -- 4b. where the weights come from ----------------------------------------
+ * The crash this guards against: an unconditional HF path with a GLOB in its
+ * filePath, matching an auxiliary model, aborting the WASM module. */
+
+{
+  // This used to require `-00001-of-00005.gguf`, encoding the assumption that
+  // shards were mandatory because a 2.62 GB file would trip the 2 GB
+  // ArrayBuffer cap. Measured 2026-08-12: wllama 3.5.1 loads the unsplit file,
+  // so the artifact is a free choice and pinning one here would only forbid the
+  // configuration that is actually running. What still matters is that the
+  // local path exists at all — without it `npm run dev` has no weights and
+  // silently falls through to the network.
+  check(typeof PROFILES['gemma-4-e2b-q4'].url === 'string'
+    && PROFILES['gemma-4-e2b-q4'].url.startsWith('/models/')
+    && PROFILES['gemma-4-e2b-q4'].url.endsWith('.gguf'),
+    'E2B ships a local url under /models/, so `npm run dev` loads off serveSpikeModels()',
+    PROFILES['gemma-4-e2b-q4'].url);
+  const globbed = Object.entries(PROFILES).filter(([, p]) => /[*?]/.test(p.hf?.filePath || ''));
+  check(globbed.length === 0, 'and NO profile globs a third-party repo — every hf.filePath is pinned',
+    Object.values(PROFILES).map((p) => p.hf?.filePath).join(' | '));
+
+  check(Object.keys(resolveModelSource({ profile: PROFILES['gemma-4-e2b-q4'], env: {} })).length === 0,
+    'unset env leaves the profile exactly as it is');
+
+  const pages = resolveModelSource({ profile: PROFILES['gemma-4-e2b-q4'], env: { VITE_MODEL_URL: '' } });
+  check('url' in pages && pages.url === undefined,
+    'VITE_MODEL_URL="" switches the local path OFF — the Pages case, where dist/ has no weights');
+  check({ ...PROFILES['gemma-4-e2b-q4'], ...pages }.url === undefined,
+    'and it is a PROFILE patch, so the engine cannot fall back to the profile url');
+
+  const hosted = resolveModelSource({ env: { VITE_MODEL_URL: 'https://cdn.example/e2b-00001-of-00005.gguf' } });
+  check(hosted.url === 'https://cdn.example/e2b-00001-of-00005.gguf',
+    'a URL points at an external CORS host — a Release asset, or a CDN');
+
+  const hf = resolveModelSource({
+    profile: PROFILES['gemma-4-e2b-q4'],
+    env: { VITE_MODEL_HF_FILE: 'UD-Q4_K_XL/other.gguf' },
+  });
+  check(hf.hf.repo === PROFILES['gemma-4-e2b-q4'].hf.repo && hf.hf.filePath === 'UD-Q4_K_XL/other.gguf',
+    'the file can be re-pinned without restating the repo');
+  check(resolveModelSource({ env: { VITE_MODEL_HF_REPO: '' } }).hf === undefined,
+    'an empty repo disables the HF fallback entirely');
+
+  let threw = null;
+  try { resolveModelSource({ env: { VITE_MODEL_HF_FILE: 'UD-Q4_K_XL/*.gguf' } }); } catch (err) { threw = err; }
+  check(/is a glob/.test(String(threw?.message)),
+    'and a glob is refused at the boundary rather than shipped',
+    String(threw?.message).slice(0, 60));
+
+  const transport = createWllamaTransport({
+    env: { VITE_MODEL_URL: 'https://cdn.example/first.gguf' },
+    createInstance: async () => new FakeWllama(),
+  });
+  check(transport.engines[TIER.REASON].url === 'https://cdn.example/first.gguf',
+    'createWllamaTransport applies the env source to the chat engine');
+  check(transport.engines[TIER.EMBED].hf?.filePath === PROFILES['embeddinggemma-q8'].hf.filePath,
+    'and leaves the embedding tier on its own pinned file');
+  check(createWllamaTransport({
+    chat: { url: '/explicit.gguf' },
+    env: { VITE_MODEL_URL: 'https://cdn.example/first.gguf' },
+    createInstance: async () => new FakeWllama(),
+  }).engines[TIER.REASON].url === '/explicit.gguf', 'an explicit caller override still wins over the env');
 }
 
 /* -- 5. the memory picture (plan §7.2 / §8) ---------------------------------- */

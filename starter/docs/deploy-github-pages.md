@@ -107,7 +107,48 @@ host would return the SPA's HTML with status 200 — so the old code would have
 reported a successful save that never happened. `App.jsx` now refuses in
 production builds unless `VITE_ENTRANCE_API` points somewhere real.
 
-### 3.5 ONNX runs single-threaded
+### 3.5 The in-tab model weights cannot ship either
+
+Same shape as §3.2, one order of magnitude worse. The `wllama` backend loads
+`gemma-4-E2B-it-qat-UD-Q4_K_XL` (**2.62 GB**) plus EmbeddingGemma (~330 MB).
+In `npm run dev` the chat weights come off disk: `serveSpikeModels()` in
+`vite.config.js` serves `/models/*` out of `../explore/wllama-spike/models/`,
+and the profile's `url` points at the first of five shards. **A deployed build
+has none of that** — there is no dev-server middleware, and
+`pruneOversizedAssets()` deletes anything over 100 MB from `dist/` because Pages
+will not serve it. Weights must come from an external CORS-enabled host.
+
+`src/lib/llm/index.js#resolveModelSource` reads, per tier:
+
+| variable | unset | `''` | a value |
+|---|---|---|---|
+| `VITE_MODEL_URL` / `VITE_EMBED_URL` | the profile's local path (dev) | no local path; go straight to Hugging Face | load from there — first shard, if split |
+| `VITE_MODEL_HF_REPO` / `VITE_EMBED_HF_REPO` | the profile's pinned repo | HF fallback off entirely | that repo |
+| `VITE_MODEL_HF_FILE` / `VITE_EMBED_HF_FILE` | the profile's pinned file | — | that file, **exact — a glob is refused** |
+
+So the Pages configuration is `VITE_MODEL_URL=` (empty), which falls through to
+the pinned Hugging Face file.
+
+⚠️ Two things to know before relying on that:
+
+- **Never glob `hf.filePath`.** It expands against the third-party repo's
+  listing. `UD-Q4_K_XL/*.gguf` matched an auxiliary model, llama.cpp failed a
+  `GGML_ASSERT`, and a failed assert aborts the whole WASM module — every later
+  call in the tab dies with `RuntimeError: unreachable`, retry included.
+- ✅ **The single 2.62 GB file loads — verified 2026-08-12** in Chrome/WebGPU on
+  an RTX 3080, wllama 3.5.1. This had been an open question: wllama supports
+  split GGUFs specifically because of the 2 GB `ArrayBuffer` cap, and a 2.62 GB
+  file walks straight into it, so the spike split the model on 2026-08-10 and
+  everything downstream assumed shards were mandatory. **They are not.**
+  Consequence for deployment: nothing needs hosting. Point `hf` (or
+  `VITE_MODEL_URL`) at unsloth's file and Pages serves the app only.
+- The five shards in `explore/wllama-spike/models/` remain the fallback if the
+  cap ever bites on another browser or a tighter device — publish them as GitHub
+  **Release assets** (largest 1.32 GB, under the 2 GB per-asset limit) and set
+  `VITE_MODEL_URL` to the first. Verified on one machine and one browser; treat
+  it as "works here", not "works everywhere".
+
+### 3.6 ONNX runs single-threaded
 
 `onnxruntime-web`'s threaded WASM needs `SharedArrayBuffer`, which requires
 COOP/COEP response headers. **Pages cannot set custom headers.** ORT falls back

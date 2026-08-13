@@ -33,7 +33,7 @@ import { createSurface } from '../surface.js';
 import { windowIdOf } from '../turnContext.js';
 import { Graph } from '../logic/graph.js';
 import { Coords } from '../logic/coords.js';
-import { MapioWorldAdapter } from './mapioAdapter.js';
+import { MapioWorldAdapter } from '../adapters/mapioWorldAdapter.js';
 import { buildWorldBriefing } from './briefing.js';
 import { registerHarnessTools, HARNESS_TOOL_NAMES } from './harnessTools.js';
 

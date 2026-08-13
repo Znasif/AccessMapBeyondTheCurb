@@ -113,7 +113,7 @@ export function buildRunRecord({
       'toolRegistry.js',
       'tools/*.js',
       'logic/graph.js',
-      'parity/mapioAdapter.js',
+      'adapters/mapioWorldAdapter.js',
     ],
     worlds,
     ...extra,

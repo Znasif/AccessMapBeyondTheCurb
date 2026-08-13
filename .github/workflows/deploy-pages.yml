@@ -78,6 +78,16 @@ jobs:
           # DOM no matter what. Use a domain-restricted embed key.
           VITE_AUDIOM_KEY: ${{ secrets.VITE_AUDIOM_KEY }}
           VITE_AUDIOM_EMBED_URL: ${{ secrets.VITE_AUDIOM_EMBED_URL }}
+          # Empty string = "this build has no local weights", which is the truth
+          # on Pages: the GGUF lives in explore/wllama-spike/models/ and is
+          # neither committed nor copyable into dist (100 MB file limit, 1 GB
+          # site limit — both enforced by the step below). Left unset, the
+          # profile's dev url `/models/…gguf` would be requested against the
+          # site root, 404, and only THEN fall back to Hugging Face — a wasted
+          # round trip and an alarming console error on every first load.
+          # Unset it here only if you have somewhere else to host them.
+          VITE_MODEL_URL: ''
+          VITE_EMBED_URL: ''
         run: npm run build
 
       - name: Check artifact against Pages limits

@@ -57,6 +57,10 @@ export default function App() {
     toggleListening,
     handleQuery,
     setTranscript,
+    wllamaStatus,
+    sttNotice,
+    canInstallStt,
+    installStt,
   } = useMapioDispatcher({ coordRef: fingerCoordRef, backend: llmBackend });
 
   // Bias geocoder results toward what the user is looking at.
@@ -205,6 +209,10 @@ export default function App() {
           setTranscript={setTranscript}
           llmBackend={llmBackend}
           onLlmBackendChange={setLlmBackend}
+          wllamaStatus={wllamaStatus}
+          sttNotice={sttNotice}
+          canInstallStt={canInstallStt}
+          installStt={installStt}
         />
       </Sidebar>
 

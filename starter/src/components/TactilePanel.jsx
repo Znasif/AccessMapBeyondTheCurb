@@ -19,6 +19,8 @@ export function TactilePanel({
   selectedMapKey, onSelectMapKey, MAPIO_MAPS, mapInfo, isLoadingMap,
   isListening, toggleListening, transcript, lastAnswer, isProcessing, handleQuery, setTranscript,
   llmBackend, onLlmBackendChange,
+  wllamaStatus,
+  sttNotice, canInstallStt, installStt,
 }) {
   return (
     <section className="panel-section">
@@ -70,6 +72,52 @@ export function TactilePanel({
             <option value="http">🌐 Local Router (HTTP Port 8081)</option>
           </select>
 
+          {/* Wllama WASM Loading Progress Bar */}
+          {llmBackend === 'wllama' && wllamaStatus && wllamaStatus.loading && (
+            <div style={{
+              marginTop: '0.5rem',
+              padding: '0.5rem 0.6rem',
+              borderRadius: '6px',
+              background: 'rgba(0, 102, 204, 0.08)',
+              border: '1px solid rgba(0, 102, 204, 0.3)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#004488', fontWeight: 600 }}>
+                <span>⚡ {wllamaStatus.text || 'Initializing WASM model...'}</span>
+                <span>{wllamaStatus.percent}%</span>
+              </div>
+              <div style={{ width: '100%', height: '6px', background: '#ccc', borderRadius: '3px', marginTop: '4px', overflow: 'hidden' }}>
+                <div style={{ width: `${Math.max(wllamaStatus.percent, 5)}%`, height: '100%', background: '#0066cc', transition: 'width 0.3s' }} />
+              </div>
+            </div>
+          )}
+
+          {/* A failed load is its own state, not "0% again": queries are blocked
+              until it clears, so the panel has to say what went wrong. */}
+          {wllamaStatus && wllamaStatus.failed && (
+            <div
+              role="alert"
+              style={{
+                marginTop: '0.5rem',
+                padding: '0.5rem 0.6rem',
+                borderRadius: '6px',
+                background: 'rgba(220, 53, 69, 0.08)',
+                border: '1px solid rgba(220, 53, 69, 0.4)',
+                fontSize: '0.78rem',
+                color: '#8a1220',
+              }}
+            >
+              <strong>⚠ {wllamaStatus.text || 'The language model failed to load'}</strong>
+              {wllamaStatus.error ? (
+                <div style={{ marginTop: '0.25rem', fontFamily: 'monospace', fontSize: '0.72rem', wordBreak: 'break-word' }}>
+                  {wllamaStatus.error}
+                </div>
+              ) : null}
+              <div style={{ marginTop: '0.25rem' }}>
+                Questions needing the model are unavailable. Reload the page to try again.
+              </div>
+            </div>
+          )}
+
           {isLoadingMap ? (
             <p className="inline-note" style={{ color: '#0066cc', marginTop: '0.3rem' }}>Loading map model...</p>
           ) : mapInfo ? (
@@ -92,6 +140,52 @@ export function TactilePanel({
           Voice Questions (Point & Ask):
         </label>
         
+        {/* The recogniser's sticky notice. It is a STATE, not an event: while
+            `severity: 'warning'` it means microphone audio is being sent to the
+            browser vendor's servers, and that must stay on screen. */}
+        {sttNotice ? (
+          <div
+            role={sttNotice.severity === 'warning' ? 'alert' : 'status'}
+            style={{
+              marginBottom: '0.5rem',
+              padding: '0.4rem 0.55rem',
+              borderRadius: '6px',
+              fontSize: '0.75rem',
+              lineHeight: 1.35,
+              background: sttNotice.severity === 'warning' ? 'rgba(220, 53, 69, 0.08)' : 'rgba(0, 102, 204, 0.06)',
+              border: `1px solid ${sttNotice.severity === 'warning' ? 'rgba(220, 53, 69, 0.4)' : 'rgba(0, 102, 204, 0.25)'}`,
+              color: sttNotice.severity === 'warning' ? '#8a1220' : '#004488',
+            }}
+          >
+            {sttNotice.severity === 'warning' ? '⚠ ' : 'ℹ '}
+            {sttNotice.text}
+            {/* The notice is only half the story while the pack is merely
+                DOWNLOADABLE: local recognition is possible, it just has not been
+                fetched. Chrome gates that download on a user gesture, so it has
+                to be a button — `processLocally` alone will never get there. */}
+            {canInstallStt ? (
+              <div style={{ marginTop: '0.4rem' }}>
+                <button
+                  type="button"
+                  onClick={() => installStt?.()}
+                  style={{
+                    fontSize: '0.75rem',
+                    padding: '0.25rem 0.6rem',
+                    borderRadius: '5px',
+                    border: '1px solid rgba(0, 102, 204, 0.5)',
+                    background: '#fff',
+                    color: '#004488',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  ⬇ Install on-device speech (keeps audio on this machine)
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
           <button
             type="button"
