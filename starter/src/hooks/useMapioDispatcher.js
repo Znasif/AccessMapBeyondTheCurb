@@ -165,6 +165,8 @@ export function useMapioDispatcher({
    * "audio is leaving the machine" notice into an action instead of a fact.
    */
   const [canInstallStt, setCanInstallStt] = useState(false);
+  const [installingStt, setInstallingStt] = useState(false);
+  const installingSttRef = useRef(false);
 
   const recognizerRef = useRef(null);
   const micRef = useRef(null);
@@ -515,9 +517,20 @@ export function useMapioDispatcher({
    * the mode and notice update through `onStateChange` with no extra plumbing.
    */
   const installStt = useCallback(async () => {
-    const ok = await recognizerRef.current?.install?.();
-    setCanInstallStt(Boolean(recognizerRef.current?.canInstall?.()));
-    return Boolean(ok);
+    // `canInstall()` stays true through DOWNLOADING as well as DOWNLOADABLE, so
+    // the offer alone does not stop a second click starting a second download of
+    // a few hundred MB. Chrome gives no progress events for this, so the UI has
+    // nothing else to show it is busy either — hence an explicit flag.
+    if (installingSttRef.current) return false;
+    installingSttRef.current = true;
+    setInstallingStt(true);
+    try {
+      return Boolean(await recognizerRef.current?.install?.());
+    } finally {
+      installingSttRef.current = false;
+      setInstallingStt(false);
+      setCanInstallStt(Boolean(recognizerRef.current?.canInstall?.()));
+    }
   }, []);
 
   const toggleListening = useCallback(() => {
@@ -550,5 +563,6 @@ export function useMapioDispatcher({
     sttMode,
     canInstallStt,
     installStt,
+    installingStt,
   };
 }

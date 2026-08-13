@@ -135,18 +135,26 @@ the pinned Hugging Face file.
   listing. `UD-Q4_K_XL/*.gguf` matched an auxiliary model, llama.cpp failed a
   `GGML_ASSERT`, and a failed assert aborts the whole WASM module — every later
   call in the tab dies with `RuntimeError: unreachable`, retry included.
-- ✅ **The single 2.62 GB file loads — verified 2026-08-12** in Chrome/WebGPU on
-  an RTX 3080, wllama 3.5.1. This had been an open question: wllama supports
-  split GGUFs specifically because of the 2 GB `ArrayBuffer` cap, and a 2.62 GB
-  file walks straight into it, so the spike split the model on 2026-08-10 and
-  everything downstream assumed shards were mandatory. **They are not.**
-  Consequence for deployment: nothing needs hosting. Point `hf` (or
-  `VITE_MODEL_URL`) at unsloth's file and Pages serves the app only.
-- The five shards in `explore/wllama-spike/models/` remain the fallback if the
-  cap ever bites on another browser or a tighter device — publish them as GitHub
-  **Release assets** (largest 1.32 GB, under the 2 GB per-asset limit) and set
-  `VITE_MODEL_URL` to the first. Verified on one machine and one browser; treat
-  it as "works here", not "works everywhere".
+- ✅ **The unsplit 2.62 GB file loads, and Pages needs no hosted weights.**
+  Verified cold in Chrome incognito with OPFS at 0 MB: storage climbs to 2955 MB
+  (2.62 GB E2B + ~318 MB EmbeddingGemma), both tiers open, questions answered.
+  So `hf` pointing at unsloth is the whole deployment story — no mirror, no
+  Release assets, no HF account.
+- ⚠️ **Curl every `hf.filePath` before trusting it.** `UD-Q4_K_XL/<file>.gguf`
+  404s; the GGUF is at the repo ROOT. A wrong path is not a harmless miss:
+  wllama caches the 15-byte error body and llama.cpp aborts the entire WASM
+  module with `Gemma4Assistant requires ctx_other to be set` →
+  `GGML_ASSERT(ctx_tgt != nullptr)`. **That signature means "no usable model
+  here", not "wrong model"** — two diagnoses were built on reading it the other
+  way and both were wrong.
+
+  ```
+  curl -sSIL https://huggingface.co/<repo>/resolve/main/<path> | grep -E 'HTTP|content-length'
+  ```
+
+  A 200 whose `content-length` matches the profile's `weightsBytes` is the only
+  green light. Also note `model-00001-of-00001.gguf` in the logs is wllama's
+  cache name for *any* single-file model and identifies nothing.
 
 ### 3.6 ONNX runs single-threaded
 

@@ -17,7 +17,16 @@ if (typeof window === 'undefined') {
             newHeaders.set('Cross-Origin-Resource-Policy', 'cross-origin');
           }
           newHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
-          return new Response(response.body, {
+          // PATCHED (not upstream v0.1.7). 204/205/304 are "null body status":
+          // `new Response(body, {status})` THROWS for them, the throw lands in
+          // the .catch below, which returns undefined, and the browser reports
+          // "Failed to convert value to 'Response'" — the request fails outright
+          // rather than degrading. A 304 on reload is routine, so unpatched this
+          // breaks cached fetches on every repeat visit; observed first on
+          // Mapbox's 204 telemetry beacon.
+          const nullBody = response.status === 204 || response.status === 205
+            || response.status === 304;
+          return new Response(nullBody ? null : response.body, {
             status: response.status,
             statusText: response.statusText,
             headers: newHeaders,

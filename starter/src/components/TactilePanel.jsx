@@ -20,7 +20,7 @@ export function TactilePanel({
   isListening, toggleListening, transcript, lastAnswer, isProcessing, handleQuery, setTranscript,
   llmBackend, onLlmBackendChange,
   wllamaStatus,
-  sttNotice, canInstallStt, installStt,
+  sttNotice, canInstallStt, installStt, installingStt,
 }) {
   return (
     <section className="panel-section">
@@ -168,6 +168,7 @@ export function TactilePanel({
                 <button
                   type="button"
                   onClick={() => installStt?.()}
+                  disabled={installingStt}
                   style={{
                     fontSize: '0.75rem',
                     padding: '0.25rem 0.6rem',
@@ -179,7 +180,9 @@ export function TactilePanel({
                     fontWeight: 600,
                   }}
                 >
-                  ⬇ Install on-device speech (keeps audio on this machine)
+                  {installingStt
+                    ? '⏳ Downloading speech pack… (no progress available)'
+                    : '⬇ Install on-device speech (keeps audio on this machine)'}
                 </button>
               </div>
             ) : null}

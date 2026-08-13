@@ -83,6 +83,12 @@ function serveSpikeModels() {
         if (existsSync(filePath) && statSync(filePath).isFile()) {
           res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
           res.setHeader('Content-Type', 'application/octet-stream');
+          // Without this the response is chunked with no length, so wllama's
+          // progressCallback reports {loaded, total: 0} and any percent computed
+          // from it is stuck at 0 for the whole 2.6 GB download — while the HF
+          // tier next to it, which does send a length, animates normally. That
+          // asymmetry reads as "the chat model is hung".
+          res.setHeader('Content-Length', String(statSync(filePath).size));
           return createReadStream(filePath).pipe(res);
         }
         next();

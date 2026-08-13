@@ -61,6 +61,7 @@ export default function App() {
     sttNotice,
     canInstallStt,
     installStt,
+    installingStt,
   } = useMapioDispatcher({ coordRef: fingerCoordRef, backend: llmBackend });
 
   // Bias geocoder results toward what the user is looking at.
@@ -213,6 +214,7 @@ export default function App() {
           sttNotice={sttNotice}
           canInstallStt={canInstallStt}
           installStt={installStt}
+          installingStt={installingStt}
         />
       </Sidebar>
 

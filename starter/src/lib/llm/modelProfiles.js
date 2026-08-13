@@ -208,21 +208,35 @@ export const PROFILES = {
    * MUST be pointed at an external CORS host via `VITE_MODEL_URL` — or fall
    * through to `hf` below.
    *
-   * ✅ RESOLVED 2026-08-12: **the single 2.62 GB file loads.** Chrome/WebGPU,
-   * RTX 3080, wllama 3.5.1 — `url` above is that unsplit file and it opened.
+   * ✅ TWO THINGS SETTLED 2026-08-12, after one wrong diagnosis each way.
    *
-   * This had been the open question, and the assumption behind it was wrong in a
-   * useful direction. §0.1 notes v3 handles `llama-gguf-split` because of the
-   * **2 GB ArrayBuffer cap**, and a 2.62 GB file walks straight into it, so the
-   * W spike split the model on 2026-08-10 and everything after assumed shards
-   * were mandatory. They are not: v3's fetch path streams past the cap. So a
-   * deployed build needs NO hosted weights of ours — `hf` below resolves to
-   * unsloth directly, public, no API key (`general.license = gemma`).
+   * **The unsplit 2.62 GB file loads.** Verified cold: Chrome incognito on an
+   * RTX 3080, OPFS at 0 MB, storage climbing to 2955 MB — 2.62 GB of E2B plus
+   * ~318 MB of EmbeddingGemma, both tiers open, questions answered. So wllama v3
+   * streams past the 2 GB `ArrayBuffer` cap that §0.1 cites as the reason for
+   * `llama-gguf-split` support. The W spike's 5 shards work too; they are one
+   * option, not a requirement.
    *
-   * Verified on one machine and one browser. The five shards in
-   * `explore/wllama-spike/models/` stay the fallback if the cap ever bites
-   * somewhere tighter: publish them as GitHub Release assets (largest 1.32 GB,
-   * under the 2 GB per-asset limit) and set `VITE_MODEL_URL` to the first.
+   * **The `hf` path below had no subfolder, and a 404 looks like a broken
+   * model.** `UD-Q4_K_XL/<file>.gguf` returns `404 EntryNotFound` — the GGUF
+   * sits at the repo ROOT. wllama cached the 15-byte error body and llama.cpp
+   * failed to build a context from it, printing:
+   *
+   *     llama_init_from_model: failed to initialize the context:
+   *       Gemma4Assistant requires ctx_other to be set
+   *     GGML_ASSERT(ctx_tgt != nullptr) failed   (server-context.cpp:1259)
+   *
+   * ...which aborts the whole WASM module. **That signature means "no usable
+   * model here", not "wrong model".** `Gemma4Assistant requires ctx_other` is
+   * memory-fitting noise on the way down. Two diagnoses were built on it and
+   * both were wrong: that a glob had matched an auxiliary "assistant" model, and
+   * that shards were mandatory. The real tell is that
+   * `model-00001-of-00001.gguf` is **wllama's cache name for any single-file
+   * model** and identifies nothing about the source.
+   *
+   * Before changing any `hf.filePath`, curl it:
+   *   curl -sSIL https://huggingface.co/<repo>/resolve/main/<path> | grep -E 'HTTP|content-length'
+   * A 200 whose `content-length` equals `weightsBytes` is the only green light.
    */
   'gemma-4-e2b-q4': {
     id: 'gemma-4-e2b-q4',
@@ -231,7 +245,7 @@ export const PROFILES = {
     url: '/models/gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf',
     hf: {
       repo: 'unsloth/gemma-4-E2B-it-qat-GGUF',
-      filePath: 'UD-Q4_K_XL/gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf',
+      filePath: 'gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf',
     },
     weightsBytes: 2_620_370_976,
     /**
@@ -253,11 +267,16 @@ export const PROFILES = {
    * 5.15 GB. Nobody has loaded this in a tab here — `measured: false` says so,
    * and `planFootprint()` reports the pessimistic end.
    *
-   * ⚠️ The `filePath` follows unsloth's naming convention rather than a listing
-   * anyone checked — it is the E2B name with E2B→E4B, and it is UNVERIFIED. It
-   * is still pinned rather than globbed: a wrong pin 404s and is recoverable, a
-   * glob loads the wrong model and aborts the WASM module. Set
-   * `VITE_MODEL_HF_FILE` if the real name differs.
+   * ✅ `filePath` verified by HEAD 2026-08-12: 200, and the served
+   * `content-length` is **4,215,695,776 bytes (3.93 GiB)**. ⚠️ That makes the
+   * range below WRONG — plan §7.2's "~4.8–5.2 GB, over budget on an 8 GB M1"
+   * quotes Q4_0 and Google's QAT q4_0, not the UD-Q4_K_XL this profile actually
+   * points at, which is ~900 MB smaller. The range is kept until someone loads
+   * it in a tab (`measured: false`), because a file size is not a footprint —
+   * but re-derive the E4B budget from 3.93 GiB, not from 5.15.
+   *
+   * ⚠️ A wrong `filePath` is NOT harmless: wllama caches the 404 body and
+   * llama.cpp aborts the WASM module trying to open it. Curl any path change.
    */
   'gemma-4-e4b-q4': {
     id: 'gemma-4-e4b-q4',
@@ -265,7 +284,7 @@ export const PROFILES = {
     label: 'Gemma 4 E4B (QAT, q4)',
     hf: {
       repo: 'unsloth/gemma-4-E4B-it-qat-GGUF',
-      filePath: 'UD-Q4_K_XL/gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf',
+      filePath: 'gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf',
     },
     weightsBytesRange: [4.84 * GB, 5.15 * GB],
     measured: false,
