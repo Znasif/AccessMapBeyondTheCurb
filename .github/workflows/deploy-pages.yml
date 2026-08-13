@@ -78,15 +78,28 @@ jobs:
           # DOM no matter what. Use a domain-restricted embed key.
           VITE_AUDIOM_KEY: ${{ secrets.VITE_AUDIOM_KEY }}
           VITE_AUDIOM_EMBED_URL: ${{ secrets.VITE_AUDIOM_EMBED_URL }}
-          # Empty string = "this build has no local weights", which is the truth
-          # on Pages: the GGUF lives in explore/wllama-spike/models/ and is
-          # neither committed nor copyable into dist (100 MB file limit, 1 GB
-          # site limit — both enforced by the step below). Left unset, the
-          # profile's dev url `/models/…gguf` would be requested against the
-          # site root, 404, and only THEN fall back to Hugging Face — a wasted
-          # round trip and an alarming console error on every first load.
-          # Unset it here only if you have somewhere else to host them.
-          VITE_MODEL_URL: ''
+          # The chat tier CANNOT fall back to its profile's Hugging Face source
+          # on Pages. That source is unsloth's SINGLE 2.62 GB file, and a single
+          # file walks into wllama's 2 GB ArrayBuffer cap: the tokenizer loads,
+          # then context creation aborts the whole WASM module with
+          # `GGML_ASSERT(ctx_tgt != nullptr)` — uncatchable, so the tab is dead.
+          # Only the 5-shard split works. Hence an explicit URL at the FIRST
+          # shard; wllama reads the `-00001-of-00005` suffix and fetches the
+          # other four itself.
+          #
+          # Verified by HEAD 2026-08-13 from Origin https://znasif.github.io:
+          # all five 302 -> 200, byte counts exact, `access-control-allow-origin: *`
+          # on the CDN, `accept-ranges: bytes`. Re-verify before changing it:
+          #   curl -sSIL <url> | grep -E 'HTTP|content-length'
+          VITE_MODEL_URL: 'https://huggingface.co/znasif/gemma-4-E2B-it-qat-Q4_K_XL-split/resolve/main/e2b-q4-00001-of-00005.gguf'
+          # Empty string = "this build has no LOCAL weights for the embed tier",
+          # which is the truth on Pages: dist can hold neither (100 MB file
+          # limit, 1 GB site limit, both enforced by the step below). Emptying
+          # it makes the profile's Hugging Face source take over, and for l1
+          # that source is fine — a 333 MB single file, comfortably under the
+          # 2 GB cap. Left UNSET instead, the dev url `/models/…gguf` would be
+          # requested against the site root, 404, and only then fall back — a
+          # wasted round trip and an alarming console error on every load.
           VITE_EMBED_URL: ''
         run: npm run build
 

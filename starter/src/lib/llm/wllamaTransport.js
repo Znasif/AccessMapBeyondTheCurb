@@ -131,7 +131,10 @@ export class WllamaEngine {
    * @param {Function} [opts.createInstance] () => Promise<Wllama>; injected in tests
    * @param {(p: {loaded: number, total: number}) => void} [opts.onProgress]
    */
-  constructor({ profile, url, hf, load, wasmUrl, wllamaConfig, createInstance, onProgress } = {}) {
+  constructor({
+    profile, url, hf, load, wasmUrl, wllamaConfig, createInstance, onProgress,
+    fetchImpl, baseHref,
+  } = {}) {
     if (!profile) throw new Error('WllamaEngine: `profile` is required');
     this.profile = profile;
     this.url = url ?? profile.url;
@@ -141,6 +144,11 @@ export class WllamaEngine {
     this.wllamaConfig = wllamaConfig;
     this.createInstance = createInstance || defaultCreateInstance;
     this.onProgress = onProgress;
+    /** Injectable so `#resolveSource` is testable with no network. */
+    this.fetchImpl = fetchImpl;
+    /** Base for resolving a relative `url`; the document in a browser. */
+    this.baseHref = baseHref
+      ?? (typeof location !== 'undefined' ? location.href : 'http://localhost/');
 
     this.instance = null;
     this.contextInfo = null;
@@ -154,6 +162,65 @@ export class WllamaEngine {
 
   get ready() {
     return this.status === 'ready';
+  }
+
+  /**
+   * HEAD the candidate sources and pick the first that returns real bytes.
+   *
+   * `fetch` is injectable so this stays testable with no network. A source is
+   * usable only if the request succeeds, the status is OK, and — when the
+   * profile states `weightsBytes` — the served length matches it. A length that
+   * disagrees means a redirect to an error page, a truncated mirror, or the
+   * wrong quantisation, all of which look identical once llama.cpp aborts.
+   *
+   * @returns {Promise<{kind:'url',url:string}|{kind:'hf',hf:object}|{kind:'none'}>}
+   */
+  async #resolveSource() {
+    const fetchImpl = this.fetchImpl
+      ?? (typeof fetch === 'function' ? fetch.bind(globalThis) : null);
+    const expected = this.profile?.weightsBytes;
+    const tried = [];
+
+    /**
+     * ⚠️ A first shard is NOT the model's size, and conflating the two broke the
+     * W spike for an afternoon: `e2b-q4-00001-of-00005.gguf` is 23,532,320 bytes
+     * against a `weightsBytes` of 2,620,370,976, so a naive length check rejects
+     * the split GGUF every single time and silently falls through to whatever is
+     * second in the list. Only a single-file source can be size-checked.
+     */
+    const isShard = (href) => /-\d{5}-of-\d{5}\.gguf(\?|$)/.test(href);
+
+    const usable = async (label, href) => {
+      if (!fetchImpl) return true; // no way to check; let wllama try
+      try {
+        const res = await fetchImpl(href, { method: 'HEAD', redirect: 'follow' });
+        if (!res.ok) { tried.push(`${label} → HTTP ${res.status}`); return false; }
+        const len = Number(res.headers?.get?.('content-length'));
+        if (expected && !isShard(href) && Number.isFinite(len) && len > 0 && len !== expected) {
+          tried.push(`${label} → ${len} bytes, expected ${expected}`);
+          return false;
+        }
+        return true;
+      } catch (err) {
+        tried.push(`${label} → ${err?.message || err}`);
+        return false;
+      }
+    };
+
+    if (this.url && await usable('url', new URL(this.url, this.baseHref).href)) {
+      return { kind: 'url', url: this.url };
+    }
+    if (this.hf) {
+      const href = `https://huggingface.co/${this.hf.repo}/resolve/main/${this.hf.filePath}`;
+      if (await usable('hf', href)) return { kind: 'hf', hf: this.hf };
+    }
+    if (tried.length) {
+      throw new Error(
+        `WllamaEngine(${this.profile.id}): no usable model source. ${tried.join('; ')}. ` +
+        'Handing any of these to wllama would abort the WASM module rather than fail cleanly.',
+      );
+    }
+    return { kind: 'none' };
   }
 
   /**
@@ -176,17 +243,24 @@ export class WllamaEngine {
         ...this.loadParams,
         progressCallback: (p) => this.onProgress?.({ ...p, profile: this.profile.id }),
       };
-      if (this.url) {
-        try {
-          await instance.loadModelFromUrl(this.url, params);
-        } catch (err) {
-          if (this.hf) {
-            console.warn(`[WllamaEngine] Local URL (${this.url}) unavailable, falling back to Hugging Face...`, err);
-            await instance.loadModelFromHF(this.hf, params);
-          } else {
-            throw err;
-          }
-        }
+      // ⚠️ Preflight, and note why it is not optional. A source that does not
+      // resolve to real GGUF bytes does NOT throw a catchable fetch error: wllama
+      // caches whatever came back, llama.cpp fails to build a context, and
+      // `GGML_ASSERT(ctx_tgt != nullptr)` **aborts the whole WASM module**. Two
+      // consequences that cost a day each:
+      //
+      //   1. The try/catch below WAS a fallback in name only. Once the module has
+      //      aborted, `instance` is dead, so retrying `loadModelFromHF` on it can
+      //      never work. The choice of source has to be made BEFORE wllama is
+      //      handed anything.
+      //   2. The abort surfaces as `RuntimeError: (ABORT)` with no mention of the
+      //      URL, the status, or the byte count — which is why a plain 404 got
+      //      diagnosed as a wrong model, twice. Check first; say what was wrong.
+      const source = await this.#resolveSource();
+      if (source.kind === 'url') {
+        await instance.loadModelFromUrl(source.url, params);
+      } else if (source.kind === 'hf') {
+        await instance.loadModelFromHF(source.hf, params);
       } else if (this.hf) {
         await instance.loadModelFromHF(this.hf, params);
       } else {

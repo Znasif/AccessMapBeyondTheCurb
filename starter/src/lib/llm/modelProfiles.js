@@ -208,14 +208,35 @@ export const PROFILES = {
    * MUST be pointed at an external CORS host via `VITE_MODEL_URL` — or fall
    * through to `hf` below.
    *
-   * ✅ TWO THINGS SETTLED 2026-08-12, after one wrong diagnosis each way.
+   * ⚠️ **THE 5-SHARD SPLIT IS REQUIRED. Do not point this at a single file.**
    *
-   * **The unsplit 2.62 GB file loads.** Verified cold: Chrome incognito on an
-   * RTX 3080, OPFS at 0 MB, storage climbing to 2955 MB — 2.62 GB of E2B plus
-   * ~318 MB of EmbeddingGemma, both tiers open, questions answered. So wllama v3
-   * streams past the 2 GB `ArrayBuffer` cap that §0.1 cites as the reason for
-   * `llama-gguf-split` support. The W spike's 5 shards work too; they are one
-   * option, not a requirement.
+   * The evidence, after three wrong diagnoses: every load that has ever worked —
+   * the four W-spike runs in `explore/wllama-spike/results/` — used the shards.
+   * Every failure, without exception, logged `models/model-00001-of-00001.gguf`,
+   * which is wllama's cache name for a SINGLE-file model. The tokenizer loads
+   * either way (the logs enumerate tokens and fix the EOG list), so the bytes
+   * arrive fine; it is CONTEXT creation that fails one step later.
+   *
+   * A note here briefly claimed the unsplit file loads, on the strength of a
+   * cold incognito run reaching 2955 MB of storage. That measured a *download*,
+   * not a working context, and it was wrong.
+   *
+   * §0.1 is therefore right as written: wllama supports `llama-gguf-split`
+   * because of the 2 GB `ArrayBuffer` cap, and a 2.62 GB single file walks into
+   * it.
+   *
+   * **The shards are hosted.** `huggingface.co/znasif/gemma-4-E2B-it-qat-Q4_K_XL-split`
+   * carries all five; `deploy-pages.yml` points `VITE_MODEL_URL` at
+   * `e2b-q4-00001-of-00005.gguf` there. Verified by HEAD 2026-08-13 from
+   * Origin `https://znasif.github.io`: 302 -> 200 on every shard, byte counts
+   * exact, `access-control-allow-origin: *` on the CDN, `accept-ranges: bytes`.
+   *
+   * ⚠️ Which makes the `hf` fallback below a TRAP for this tier: it is the
+   * unsplit 2.62 GB file, i.e. precisely the failure above. It is kept only
+   * because `resolveModelSource` needs some source when `VITE_MODEL_URL` is
+   * empty, and because the E4B profile shares this shape. **If the chat tier
+   * ever reaches `hf`, the tab is already lost** — that is a misconfiguration,
+   * not a graceful degradation.
    *
    * **The `hf` path below had no subfolder, and a 404 looks like a broken
    * model.** `UD-Q4_K_XL/<file>.gguf` returns `404 EntryNotFound` — the GGUF
@@ -242,7 +263,7 @@ export const PROFILES = {
     id: 'gemma-4-e2b-q4',
     tier: TIER.REASON,
     label: 'Gemma 4 E2B (QAT, UD-Q4_K_XL)',
-    url: '/models/gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf',
+    url: '/models/e2b-q4-00001-of-00005.gguf',
     hf: {
       repo: 'unsloth/gemma-4-E2B-it-qat-GGUF',
       filePath: 'gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf',
